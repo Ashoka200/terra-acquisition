@@ -37,6 +37,13 @@ TOOL_SPECS = [
          "rate": {"type": "number"}, "ltv": {"type": "number"}}, "required": ["target_metric", "target", "monthly_rent"]}},
     {"name": "portfolio_dcf", "description": "10-yr portfolio DCF: levered/unlevered IRR, EMx, DSCR.",
      "input_schema": {"type": "object", "properties": {"scenario": {"type": "string"}}}},
+    {"name": "geocode", "description": "Convert an address/place to lat,lon (and zip). Use before site_analysis when given an address.",
+     "input_schema": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}},
+    {"name": "site_analysis", "description": "Site intelligence at a lat,lon: highest-and-best-use ranking across 10 uses, distance to facilities/demand generators, FEMA flood zone, risk flags.",
+     "input_schema": {"type": "object", "properties": {"lat": {"type": "number"}, "lon": {"type": "number"}}, "required": ["lat", "lon"]}},
+    {"name": "massing", "description": "Estimate keys/units a parcel supports from area + footprint shape + zoning (FAR/height/coverage), with vs without ground-floor retail.",
+     "input_schema": {"type": "object", "properties": {"area": {"type": "number"}, "use": {"type": "string"},
+        "shape": {"type": "string"}, "far": {"type": "number"}, "height": {"type": "number"}, "coverage": {"type": "number"}}, "required": ["area"]}},
 ]
 
 # ----------------------------------------------------------- offline parsing
@@ -133,6 +140,34 @@ def offline_answer(msg, dispatch):
                 f"**Basis:** unlevered IRR {_fmt_pct(r['unlevered_irr'])} · equity {_fmt_money(r['equity'])}.",
                 [_kpis([("Levered IRR", _fmt_pct(r['levered_irr'])), ("Equity mult.", f"{r['equity_multiple']:.2f}×"),
                         ("Min DSCR", f"{r['min_dscr']:.2f}"), ("Going-in cap", _fmt_pct(r['going_in_cap'],2))])])
+        # 3.5) site intelligence / highest-and-best-use / flood for an address
+        if (any(w in m for w in ["best use", "highest and best", "what should i build", "what to build",
+                "what fits", "site intel", "flood risk", "flood zone", "what's near", "whats near"])
+                or ("flood" in m and re.search(r"\d", msg))):
+            m2 = re.search(r"(?:\bfor|\bnear|\bat|\bof|\bon)\s+(.+)$", msg, re.I)
+            cand = (m2.group(1) if m2 else msg)
+            num = re.search(r"\d{1,6}\s+\S.*$", cand)        # narrow to a street address if present
+            addr = (num.group(0) if num else cand).strip(" ?.,")
+            g = dispatch["geocode"](query=addr)
+            if not g.get("found"):
+                g = dispatch["geocode"](query=msg)           # fallback: whole message
+            if not g.get("found"):
+                return _resp("**Couldn't locate that address.** Give a street address, city + state, or a zip.")
+            s = dispatch["site_analysis"](lat=g["lat"], lon=g["lon"])
+            if s.get("error"):
+                return _resp("**" + s["error"] + "**")
+            fl = s.get("flood", {}); hbu = s.get("hbu", []); fac = s.get("facilities", [])[:5]
+            top = hbu[0] if hbu else None
+            facline = " · ".join(f"{x['cat'].replace('_',' ')} {x['dist_mi']}mi" for x in fac)
+            text = (f"**Best use: {top['use']} ({top['score']}/100)** near {(g.get('display') or '').split(',')[0]}.\n"
+                    f"**Confidence:** Medium · market-signal screen, not a feasibility study.\n"
+                    f"**Flood:** zone {fl.get('zone','?')} — {fl.get('risk','')}.\n"
+                    f"**Why:** {' · '.join((top.get('why') or [])[:3]) if top else '—'}.\n"
+                    f"**Nearest:** {facline}\n"
+                    f"**Next:** click the pin on the Map for the full panel + build-out estimator.")
+            blocks = [_kpis([(u['use'].split(' /')[0].split(' (')[0][:14], str(u['score'])) for u in hbu[:4]]),
+                      _table(["Facility", "Distance"], [[x['cat'].replace('_', ' '), str(x['dist_mi']) + ' mi'] for x in fac])]
+            return _resp(text, blocks)
         # 4) targets / search
         if any(w in m for w in ["target", "top ", "show", "list", "find", "tier 1", "tier-1", "deals", "best"]):
             tier = "Tier 2 - Moderate" if "tier 2" in m else "Tier 3 - Watch" if "tier 3" in m else "Tier 1 - Strong"

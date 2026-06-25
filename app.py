@@ -190,10 +190,32 @@ def t_analytics():
         "tier1_corp_share": round(float((t1["corp"]=="Y").mean()),3),
     }
 
+import site_intel
+def t_geocode(query):
+    import requests
+    try:
+        r = requests.get("https://nominatim.openstreetmap.org/search",
+            params={"format": "json", "addressdetails": 1, "limit": 1, "q": query},
+            headers={"User-Agent": "Terra/2.0"}, timeout=15).json()
+        if not r: return {"found": False}
+        return {"found": True, "lat": float(r[0]["lat"]), "lon": float(r[0]["lon"]),
+                "zip": ((r[0].get("address", {}) or {}).get("postcode") or "").split(";")[0],
+                "display": r[0].get("display_name")}
+    except Exception as e:
+        return {"found": False, "error": str(e)[:90]}
+
+def t_site_analysis(lat, lon):
+    return site_intel.analyze(float(lat), float(lon))
+
+def t_massing_tool(area, use="hotel", shape="rectangular", far=2.5, height=65, coverage=0.45, parking=1.0):
+    return site_intel.massing(float(area), use=use, shape=shape, far=float(far),
+                              height_ft=float(height), lot_coverage=float(coverage), parking_ratio=float(parking))
+
 DISPATCH = {"market_summary": t_market_summary, "search_targets": t_search_targets,
             "lookup_property": t_lookup_property, "underwrite": t_underwrite,
             "reverse_solve": t_reverse_solve, "portfolio_dcf": t_portfolio_dcf,
-            "map_points": t_map_points, "analytics": t_analytics}
+            "map_points": t_map_points, "analytics": t_analytics,
+            "geocode": t_geocode, "site_analysis": t_site_analysis, "massing": t_massing_tool}
 
 # ---------------- projects / model studio ----------------
 @app.route("/api/types")
@@ -306,6 +328,15 @@ def api_site():
     except Exception:
         return jsonify(error="lat & lon required"), 400
     return jsonify(site_intel.analyze(lat, lon))
+
+import parcel
+@app.route("/api/parcel")
+def api_parcel():
+    try:
+        lat = float(request.args["lat"]); lon = float(request.args["lon"])
+    except Exception:
+        return jsonify(error="lat & lon required"), 400
+    return jsonify(parcel.lookup(lat, lon))
 
 @app.route("/api/massing")
 def api_massing():

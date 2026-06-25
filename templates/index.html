@@ -564,12 +564,19 @@ async function openSite(lat,lon){
        <div class="fld"><label>Height (ft)</label><input id="ms_h" value="65"></div>
        <div class="fld"><label>Lot coverage</label><input id="ms_cov" value="0.45"></div>
      </div>
+     <div id="ms_parcel" class="note" style="font-size:11px;margin-top:6px"></div>
      <button class="btn emer" style="width:100%;justify-content:center;margin-top:10px" onclick="runMassing()">Estimate keys / units</button>
      <div id="ms_out" class="out" style="margin-top:10px;display:none"></div>
      <div class="note" style="margin-top:14px;font-size:11.5px">${esc(r.notes||'')}</div>
    </div>`;
  const u=(r.hbu&&r.hbu[0]&&r.hbu[0].use||'').toLowerCase();
- const sel=$('#ms_use'); if(sel){if(u.includes('hotel'))sel.value='hotel';else if(u.includes('residential')||u.includes('multifamily'))sel.value='residential';}}
+ const sel=$('#ms_use'); if(sel){if(u.includes('hotel'))sel.value='hotel';else if(u.includes('residential')||u.includes('multifamily'))sel.value='residential';}
+ loadParcel(lat,lon);}
+async function loadParcel(lat,lon){let p;try{p=await get('/api/parcel?lat='+lat+'&lon='+lon);}catch(e){return}
+ const el=$('#ms_parcel'); if(!el)return; const area=p.area_sf||p.footprint_sf;
+ if(area){$('#ms_area').value=area; if(p.shape)$('#ms_shape').value=p.shape;
+   el.innerHTML=`✓ Parcel auto-filled: <b>${Number(area).toLocaleString()} sf</b> <span class="muted">(${esc(p.source||'')})</span>${p.zoning?' · zoning '+esc(p.zoning):''}`;}
+ else{el.innerHTML=`<span class="muted">${esc(p.note||'')}</span>`;}}
 async function runMassing(){
  const q='/api/massing?area='+(+$('#ms_area').value)+'&use='+$('#ms_use').value+'&shape='+encodeURIComponent($('#ms_shape').value)+'&far='+(+$('#ms_far').value)+'&height='+(+$('#ms_h').value)+'&coverage='+(+$('#ms_cov').value);
  let m;try{m=await get(q);}catch(e){return}
