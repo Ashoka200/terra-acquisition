@@ -285,6 +285,28 @@ def rep_property():
     uw = t_underwrite(p["avm"] * 0.9, p["market_rent"])
     return _dl(reports.property_pdf(p, uw), "application/pdf", "Terra_Property.pdf")
 
+# ---------------- live for-sale listings (RentCast / pluggable) ----------------
+import listings
+@app.route("/api/listings/status")
+def listings_status(): return jsonify({"provider": listings.provider()})
+
+@app.route("/api/listings/near")
+def listings_near():
+    try:
+        lat = float(request.args["lat"]); lon = float(request.args["lon"])
+    except Exception:
+        return jsonify(error="lat & lon required"), 400
+    return jsonify(listings.sale_near(lat, lon, float(request.args.get("radius", 3))))
+
+@app.route("/api/listings.xlsx")
+def listings_download():
+    zc = request.args.get("zip", "").strip()
+    if not zc: return jsonify(error="zip required"), 400
+    res = listings.sale_by_zip(zc)
+    if res.get("error") or not res.get("listings"):
+        return jsonify(res), 400
+    return _dl(reports.listings_xlsx(res["listings"], f"For-Sale · {zc}"), XLSX, f"Terra_ForSale_{zc}.xlsx")
+
 # ---------------- auth gate (optional) ----------------
 import collab, feedback
 AUTH_HTML = """<!doctype html><meta charset=utf-8><title>{{mode}} · Terra</title>

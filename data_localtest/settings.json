@@ -1,0 +1,39 @@
+{
+  "buybox": {
+    "lower_pct": "0.05",
+    "upper_pct": "0.95",
+    "yield_floor_pct": "0.1",
+    "yield_target_pct": "0.9",
+    "proptype": "SFR",
+    "yearbuilt_low": "1994",
+    "yearbuilt_high": "2007",
+    "sqft_low": "1244",
+    "sqft_high": "2319",
+    "price_low": "219000",
+    "price_high": "397000",
+    "beds_min": "3",
+    "beds_max": "4",
+    "bed_cutoff": "1789",
+    "yield_floor": "7.140730514811619E-2",
+    "yield_target": "0.10040805938494168",
+    "median_yield": "8.6618181818181816E-2"
+  },
+  "scoring": {
+    "asof_serial": "46191",
+    "tenure_saturation": "15",
+    "w_yield": "30",
+    "w_price": "16",
+    "w_absentee": "15",
+    "w_tenure": "16",
+    "w_proven": "5",
+    "w_density": "4",
+    "w_target": "4",
+    "w_momentum": "5",
+    "w_sqft": "2.5",
+    "w_year": "2.5",
+    "tier1": "70",
+    "tier2": "55",
+    "risk_sensitivity": "0.3",
+    "risk_baseline": "40"
+  }
+}

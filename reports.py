@@ -215,6 +215,30 @@ def portfolio_xlsx(r, scenario="Base"):
     wb.close(); buf.seek(0); return buf.read()
 
 
+def listings_xlsx(rows, title="For-Sale Listings"):
+    buf = io.BytesIO(); wb = xlsxwriter.Workbook(buf, {"in_memory": True}); ws = wb.add_worksheet("For Sale")
+    F = _xl_formats(wb); ws.hide_gridlines(2)
+    ws.merge_range(0, 0, 0, 9, "Terra · " + title, F["title"])
+    ws.merge_range(1, 0, 1, 9, "Live for-sale listings (source: RentCast). Verify status before outreach.", F["sub"])
+    cols = [("Address", 32), ("City", 16), ("ST", 5), ("Zip", 8), ("Price", 12), ("Beds", 6),
+            ("Baths", 6), ("Sqft", 9), ("Type", 14), ("DOM", 6), ("Listed", 12)]
+    r0 = 3
+    for c, (name, w) in enumerate(cols):
+        ws.write(r0, c, name, F["hdrR"] if name in ("Price", "Beds", "Baths", "Sqft", "DOM") else F["hdr"])
+        ws.set_column(c, c, w)
+    for i, x in enumerate(rows):
+        r = r0 + 1 + i
+        ws.write(r, 0, x.get("address"), F["cell"]); ws.write(r, 1, x.get("city"), F["cell"])
+        ws.write(r, 2, x.get("state"), F["cell"]); ws.write(r, 3, x.get("zip"), F["cell"])
+        ws.write(r, 4, x.get("price"), F["money"]); ws.write(r, 5, x.get("beds"), F["cellR"])
+        ws.write(r, 6, x.get("baths"), F["cellR"]); ws.write(r, 7, x.get("sqft"), F["cellR"])
+        ws.write(r, 8, x.get("type"), F["cell"]); ws.write(r, 9, x.get("dom"), F["cellR"])
+        ws.write(r, 10, x.get("listed"), F["cell"])
+    if rows:
+        ws.freeze_panes(r0 + 1, 0); ws.autofilter(r0, 0, r0 + len(rows), 10)
+    wb.close(); buf.seek(0); return buf.read()
+
+
 if __name__ == "__main__":
     import app, os
     out = os.path.dirname(__file__)

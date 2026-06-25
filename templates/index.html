@@ -258,6 +258,7 @@ select option{background:#fff;color:#0b1320}
            <div class="row"><span class="sw" style="background:#0a7a55"></span>85+</div>
            <div class="row"><span class="sw" style="background:#13b87f"></span>78–85</div>
            <div class="row"><span class="sw" style="background:#7fd9b6"></span>70–78</div>
+           <div class="row" style="margin-top:5px;border-top:1px solid var(--line2);padding-top:5px"><span class="sw" style="background:#e3961a"></span>For-sale (live)</div>
          </div>
        </div>
      </section>
@@ -407,16 +408,35 @@ function chart(id,type,data,opts){if(CHARTS[id])CHARTS[id].destroy();
  CHARTS[id]=new Chart($('#'+id),{type,data,options:{responsive:true,maintainAspectRatio:false,...opts}})}
 
 // ---------------- MAP ----------------
-let BASE_LIGHT,BASE_SAT,HEAT,MAPVIEW='markers',GEOMARK=null;
+let BASE_LIGHT,BASE_SAT,HEAT,MAPVIEW='markers',GEOMARK=null,LISTLAYER=null;
 async function geoSearch(){const q=$('#mapq').value.trim();if(!q)return;if(!MAP){initMap();await new Promise(r=>setTimeout(r,300));}
  $('#mapstat').innerHTML='<span class="spin"></span>';
- try{const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent(q),{headers:{'Accept-Language':'en'}}).then(x=>x.json());
+ try{const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=1&q='+encodeURIComponent(q),{headers:{'Accept-Language':'en'}}).then(x=>x.json());
   if(!r||!r.length){$('#mapstat').textContent='Address not found';return}
-  const lat=+r[0].lat,lon=+r[0].lon;MAP.setView([lat,lon],15);
+  const lat=+r[0].lat,lon=+r[0].lon,zip=((r[0].address&&r[0].address.postcode)||'').split(/[;,]/)[0].trim();
+  MAP.setView([lat,lon],14);
   if(GEOMARK)MAP.removeLayer(GEOMARK);
-  GEOMARK=L.marker([lat,lon]).addTo(MAP).bindPopup('<b>'+q+'</b><br>'+(r[0].display_name||'')).openPopup();
+  const bs='style="border:1px solid #d8dee8;background:#fff;border-radius:7px;padding:4px 8px;font-size:12px;cursor:pointer;text-decoration:none;color:#0b1320;display:inline-block"';
+  const pop=`<b>${q}</b><br><span style="color:#6b7689;font-size:11px">${r[0].display_name||''}</span>
+    <div style="display:flex;gap:5px;margin-top:7px;flex-wrap:wrap">
+      <button ${bs} onclick="setBase('sat')">🛰 Satellite</button>
+      <a ${bs} target="_blank" href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lon}">🧍 Street View</a>
+      ${zip?`<button ${bs} onclick="dl('/api/listings.xlsx?zip=${zip}')">⤓ For-sale (${zip})</button>`:''}
+    </div>`;
+  GEOMARK=L.marker([lat,lon]).addTo(MAP).bindPopup(pop,{minWidth:240}).openPopup();
   $('#mapstat').textContent='📍 '+q;
+  loadListingsNear(lat,lon);
  }catch(e){$('#mapstat').textContent='geocoding needs internet';}}
+async function loadListingsNear(lat,lon){
+ let res;try{res=await get('/api/listings/near?lat='+lat+'&lon='+lon+'&radius=3');}catch(e){return}
+ if(LISTLAYER)MAP.removeLayer(LISTLAYER);
+ if(!res||res.error||!res.listings){if(res&&res.how)$('#mapstat').innerHTML='ℹ️ for-sale layer off — '+res.how;return}
+ LISTLAYER=L.layerGroup();
+ res.listings.forEach(x=>{if(x.lat&&x.lon)L.circleMarker([x.lat,x.lon],{radius:6,color:'#fff',weight:1,fillColor:'#e3961a',fillOpacity:.95})
+   .bindPopup(`<b>$${(x.price||0).toLocaleString()}</b> · ${x.beds??'?'}bd/${x.baths??'?'}ba · ${(x.sqft||0).toLocaleString()} sf<br>${x.address||''}<br><span style="color:#6b7689">${x.type||''}${x.dom!=null?' · '+x.dom+' days on market':''}</span>`)
+   .addTo(LISTLAYER);});
+ LISTLAYER.addTo(MAP);
+ $('#mapstat').innerHTML=`📍 ${res.count} for-sale nearby · amber pins`;}
 function initMap(){if(MAP){MAP.invalidateSize();return}
  MAP=L.map('lmap',{zoomControl:true,preferCanvas:true}).setView([32.8,-89],5);
  BASE_LIGHT=L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:19,attribution:'© OpenStreetMap © CARTO'});

@@ -1,0 +1,51 @@
+{
+  "fixes": {
+    "avm_discount": 0.9,
+    "rent_realization": 0.95
+  },
+  "capex_per_home": 1200,
+  "state_costs": {
+    "TX": {
+      "tax": 0.014,
+      "ins": 2800
+    },
+    "GA": {
+      "tax": 0.009,
+      "ins": 1700
+    },
+    "FL": {
+      "tax": 0.009,
+      "ins": 3800
+    },
+    "TN": {
+      "tax": 0.0065,
+      "ins": 1700
+    },
+    "NC": {
+      "tax": 0.0082,
+      "ins": 1900
+    },
+    "AZ": {
+      "tax": 0.0063,
+      "ins": 1600
+    },
+    "_default": {
+      "tax": 0.011,
+      "ins": 1800
+    }
+  },
+  "tier1_state_mix": {
+    "TX": 0.4891,
+    "GA": 0.4031,
+    "TN": 0.0606,
+    "FL": 0.0355,
+    "NC": 0.0094,
+    "AZ": 0.0024
+  },
+  "blended_tax_pct": 0.0113,
+  "blended_insurance": 2314.0,
+  "tier1_avg_avm": 270700.0,
+  "tier1_avg_maxrent": 2344.0,
+  "tier1_avg_marketrent": 2227.0,
+  "tier1_count": 20422
+}
