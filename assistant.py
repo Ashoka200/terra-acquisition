@@ -194,24 +194,33 @@ def ask(message, history, dispatch, snapshot):
         use_ai = False
     if not use_ai:
         out = offline_answer(message, dispatch); out["mode"] = "offline"; return out
-    client = anthropic.Anthropic()
-    sys = SYSTEM + "\n\nLIVE SNAPSHOT:\n" + json.dumps(snapshot)
-    msgs = list(history) + [{"role": "user", "content": message}]
-    for _ in range(6):
-        resp = client.messages.create(model=MODEL, max_tokens=1500, system=sys, tools=TOOL_SPECS, messages=msgs)
-        if resp.stop_reason == "tool_use":
-            msgs.append({"role": "assistant", "content": resp.content})
-            results = []
-            for block in resp.content:
-                if block.type == "tool_use":
-                    try:
-                        out = dispatch[block.name](**block.input)
-                    except Exception as e:
-                        out = {"error": str(e)}
-                    results.append({"type": "tool_result", "tool_use_id": block.id,
-                                    "content": json.dumps(out, default=str)})
-            msgs.append({"role": "user", "content": results})
-            continue
-        text = "".join(b.text for b in resp.content if b.type == "text")
-        return {"text": text, "blocks": [], "mode": "ai"}
-    return {"text": "(stopped after tool budget)", "blocks": [], "mode": "ai"}
+    try:
+        client = anthropic.Anthropic()
+        sys = SYSTEM + "\n\nLIVE SNAPSHOT:\n" + json.dumps(snapshot)
+        # history items must be {role, content:str}; drop anything malformed
+        hist = [m for m in (history or []) if isinstance(m, dict) and m.get("role") in ("user", "assistant") and isinstance(m.get("content"), str)]
+        msgs = hist[-12:] + [{"role": "user", "content": message}]
+        for _ in range(6):
+            resp = client.messages.create(model=MODEL, max_tokens=1600, system=sys, tools=TOOL_SPECS, messages=msgs)
+            if resp.stop_reason == "tool_use":
+                msgs.append({"role": "assistant", "content": resp.content})
+                results = []
+                for block in resp.content:
+                    if block.type == "tool_use":
+                        try:
+                            out = dispatch[block.name](**block.input)
+                        except Exception as e:
+                            out = {"error": str(e)}
+                        results.append({"type": "tool_result", "tool_use_id": block.id,
+                                        "content": json.dumps(out, default=str)})
+                msgs.append({"role": "user", "content": results})
+                continue
+            text = "".join(b.text for b in resp.content if b.type == "text")
+            return {"text": text or "(no answer)", "blocks": [], "mode": "ai"}
+        return {"text": "(stopped after tool budget)", "blocks": [], "mode": "ai"}
+    except Exception as e:
+        # never break — fall back to the deterministic brain with a note
+        out = offline_answer(message, dispatch)
+        out["text"] = out.get("text", "") + f"\n\n_ATLAS AI is temporarily unavailable ({str(e)[:90]}); answered from the deterministic engine._"
+        out["mode"] = "offline-fallback"
+        return out
