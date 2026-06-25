@@ -84,7 +84,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
       - run: pip install -r requirements.txt
-      - run: RE_DATA=$PWD/seed python evals/run_tests.py
+      - run: cp -r seed /tmp/d && RE_DATA=/tmp/d python evals/run_tests.py
 ```
 
 ## Alternatives

@@ -15,14 +15,18 @@ def ok(name, cond):
 
 print("== 1. scoring parity vs Excel cached ==")
 refs = E.load_refs(DATA)
-uni = pd.read_parquet(os.path.join(DATA, "universe_raw.parquet"))
-sc = E.score_universe(uni, refs)              # parity mode
-ok("match count = 284932", int(sc["match"].sum()) == 284932)
-ok("Tier 1 = 16063", int((sc["tier"] == "Tier 1 - Strong").sum()) == 16063)
-ok("tier agreement = 100%", (sc["tier"].values == uni["x_tier"].astype(str).values).mean() == 1.0)
-d = (pd.to_numeric(sc.loc[sc["match"]==1,"total_score"]) -
-     pd.to_numeric(uni.loc[sc["match"]==1,"x_total"])).abs().max()
-ok("total_score max abs diff < 1e-9", d < 1e-9)
+_uni_path = os.path.join(DATA, "universe_raw.parquet")
+if os.path.exists(_uni_path):
+    uni = pd.read_parquet(_uni_path)
+    sc = E.score_universe(uni, refs)              # parity mode
+    ok("match count = 284932", int(sc["match"].sum()) == 284932)
+    ok("Tier 1 = 16063", int((sc["tier"] == "Tier 1 - Strong").sum()) == 16063)
+    ok("tier agreement = 100%", (sc["tier"].values == uni["x_tier"].astype(str).values).mean() == 1.0)
+    d = (pd.to_numeric(sc.loc[sc["match"]==1,"total_score"]) -
+         pd.to_numeric(uni.loc[sc["match"]==1,"x_total"])).abs().max()
+    ok("total_score max abs diff < 1e-9", d < 1e-9)
+else:
+    print("  SKIP parity (universe_raw.parquet not deployed — dev-only check)")
 
 print("== 2. reverse solver round-trips to target ==")
 a = dict(closing=0.03, rehab=15000, vacancy=0.05, pm=0.08, maint=0.05, tax=0.011,

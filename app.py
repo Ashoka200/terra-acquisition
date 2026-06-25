@@ -59,9 +59,9 @@ def _seed_data():
     if not os.path.isdir(seed): return
     os.makedirs(DATA, exist_ok=True)
     for fn in os.listdir(seed):
-        dst = os.path.join(DATA, fn)
-        if not os.path.exists(dst):
-            shutil.copy(os.path.join(seed, fn), dst)
+        src = os.path.join(seed, fn); dst = os.path.join(DATA, fn)
+        if os.path.isfile(src) and not os.path.exists(dst):   # files only — projects/ is created fresh
+            shutil.copy(src, dst)
 _seed_data()
 
 # ---------------- load canonical store on startup ----------------
