@@ -209,16 +209,54 @@ def offline_answer(msg, dispatch):
                     f"**Basis:** {r['beds']}bd / {r['sqft']:.0f} sf · tenure {r['tenure']:.1f}y · click it in Targets for the full profile.",
                     [_kpis([("AVM", _fmt_money(r['avm'])), ("Market rent", _fmt_money(r['market_rent'])),
                             ("Gross yield", _fmt_pct(r['gross_yield'])), ("Score", f"{r['total_score']:.0f}")])])
+        # 7) explain the model / methodology
+        if any(w in m for w in ["explain", "how does", "how do", "how it works", "how the", "methodology",
+                                "buy box", "buybox", "scoring model", "how are", "what drives", "how is the score"]):
+            return _resp(
+                "**Terra is a gated 4-pillar acquisition model.**\n"
+                "**Gate:** a property must match the buy box — SFR, with year-built / sqft / AVM inside the bands of your "
+                "187 closed deals, and in a rent-benchmarked zip. Fail the gate and it scores 0 (Not a Match).\n"
+                "**Score 0-100** across four pillars: RETURN (gross yield 30 + price/margin 16), MOTIVATION "
+                "(absentee/corporate 15 + ownership tenure 16), LOCATION (proven market 5 + cluster density 4 + metro "
+                "target 4 + rent momentum 5), FIT (sqft 2.5 + year-built 2.5) — then a market-risk haircut.\n"
+                "**Tier:** score ≥70 = Tier 1, ≥55 = Tier 2, matched but lower = Tier 3.\n"
+                "**Next:** open Model Studio to reweight any metric, or ask me to score a specific deal.")
+        # 8) best / highest-yield / cheapest
+        if any(w in m for w in ["highest yield", "best yield", "top yield", "cheapest", "lowest price",
+                                "best deal", "best return", "highest return", "most profitable"]):
+            st = _state(msg); args = {"tier": "Tier 1 - Strong", "limit": 60}
+            if st: args["state"] = st
+            rows = dispatch["search_targets"](**args)["rows"]
+            yld = any(w in m for w in ["yield", "return", "profitable"])
+            rows = sorted(rows, key=lambda x: x.get("gross_yield" if yld else "avm", 0), reverse=yld)[:8]
+            lab = "highest-yield" if yld else "lowest-priced"
+            tbl = [[x['address'], x['state'], _fmt_money(x['avm']), _fmt_pct(x['gross_yield']), f"{x['total_score']:.0f}"] for x in rows]
+            return _resp(f"**Top {len(tbl)} {lab} Tier-1 targets{(' in '+st) if st else ''}:**\n**Next:** open Targets for the full sortable list.",
+                         [_table(["Address", "ST", "AVM", "Yield", "Score"], tbl)])
+        # 9) smart router — attempt a useful action before any menu
+        st = _state(msg)
+        if st:
+            r = dispatch["search_targets"](tier="Tier 1 - Strong", state=st, limit=8)
+            if r.get("rows"):
+                tbl = [[x['address'], x['state'], _fmt_money(x['avm']), _fmt_pct(x['gross_yield']), f"{x['total_score']:.0f}"] for x in r["rows"][:8]]
+                return _resp(f"**{r['count']} Tier-1 targets in {st}** — top {len(tbl)} by score:", [_table(["Address", "ST", "AVM", "Yield", "Score"], tbl)])
+        prices = _all_money(m)
+        if prices and ("rent" in m or "$" in msg) and max(prices) > 40000:
+            price = max(prices); rent = (min(prices) if len(prices) >= 2 else 2200)
+            rr = dispatch["underwrite"](price=price, monthly_rent=rent)
+            return _resp(f"**At {_fmt_money(price)} / {_fmt_money(rent)} rent: Cap {_fmt_pct(rr['cap_rate'],2)}, CoC {_fmt_pct(rr['coc'],2)}, DSCR {rr['dscr']:.2f}.**",
+                         [_kpis([("Cap", _fmt_pct(rr['cap_rate'],2)), ("CoC", _fmt_pct(rr['coc'],2)), ("DSCR", f"{rr['dscr']:.2f}"), ("Monthly CF", _fmt_money(rr['monthly_cf']))])])
     except Exception as e:
         return _resp(f"(offline brain error: {e}) — try the tool buttons in each tab.")
-    # fallback menu
-    return _resp("**I run the deterministic engine.** Ask me to:\n"
+    # fallback — concise, and points to full power
+    return _resp("**I can run the engine for you.** Try one:\n"
             "• *Top Tier-1 targets in GA under $250k*\n"
             "• *Underwrite a $230k home at $2,200 rent*\n"
             "• *What price hits a 1.25 DSCR at $2,200 rent?*\n"
+            "• *Best use and flood risk for [address]*\n"
             "• *Run the portfolio DCF downside case*\n"
-            "• *Pipeline summary / concentration*\n"
-            "_(Set ANTHROPIC_API_KEY for free-form questions.)_")
+            "• *How does the scoring model work?*\n\n"
+            "For open-ended questions, set ANTHROPIC_API_KEY (Railway → Variables) to unlock full conversational ATLAS.")
 
 # ----------------------------------------------------------- entry point
 def ask(message, history, dispatch, snapshot):
