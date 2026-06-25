@@ -507,7 +507,9 @@ def api_feedback_summary():
 
 # ---------------- routes ----------------
 @app.route("/health")
-def health(): return jsonify(status="ok", rows=len(SCORED), model=assistant.MODEL, auth=auth.enabled())
+def health(): return jsonify(status="ok", rows=len(SCORED), model=assistant.MODEL, auth=auth.enabled(),
+                             atlas_ai=bool(os.environ.get("ANTHROPIC_API_KEY")),
+                             listings=bool(os.environ.get("RENTCAST_API_KEY")))
 
 @app.route("/")
 def index(): return render_template("index.html")

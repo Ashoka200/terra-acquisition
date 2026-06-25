@@ -348,7 +348,7 @@ select option{background:#fff;color:#0b1320}
 <!-- copilot -->
 <button class="fab" onclick="toggleChat()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.7L18.5 9l-4.7 1.8L12 15l-1.8-4.2L5.5 9l4.7-1.3z"/></svg> ATLAS</button>
 <div class="copilot" id="copilot">
-  <div class="cph"><div class="av">A</div><div style="flex:1"><b>ATLAS</b><br><small>Acquisition copilot</small></div><span class="close" onclick="toggleChat()">✕</span></div>
+  <div class="cph"><div class="av">A</div><div style="flex:1"><b>ATLAS</b> <span id="atlasMode" style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:6px;background:#eef1f6;color:#6b7689">offline</span><br><small>Acquisition copilot</small></div><span class="close" onclick="toggleChat()">✕</span></div>
   <div class="clog" id="clog"><div class="bub at"><b>Hi — I'm ATLAS.</b><br>I run the deterministic engine and explain the result. Try one:</div></div>
   <div class="chips">
     <span onclick="chip(this)">Top Tier-1 targets in GA under $250k</span>
@@ -661,6 +661,7 @@ async function sendChat(){const t=$('#c_in').value.trim();if(!t)return;$('#c_in'
  const log=$('#clog');log.insertAdjacentHTML('beforeend',`<div class="bub me">${esc(t)}</div>`);
  const wait=document.createElement('div');wait.className='bub at';wait.innerHTML='<span class="spin"></span>';log.appendChild(wait);log.scrollTop=log.scrollHeight;
  const r=await post('/chat',{message:t,history:HIST});wait.remove();
+ const mb=$('#atlasMode'); if(mb&&r.mode){const ai=r.mode==='ai';mb.textContent=ai?'AI':(r.mode==='offline-fallback'?'offline (AI error)':'offline');mb.style.background=ai?'#e7f7f0':'#eef1f6';mb.style.color=ai?'#0a7a55':'#6b7689';}
  const a=r.text||('⚠ '+(r.error||'error'));
  const ctx=t.slice(0,80).replace(/['"<>]/g,'');
  const fbk=r.text?`<div class="fbk"><button onclick="fb(this,'up','${ctx}')">👍</button><button onclick="fb(this,'down','${ctx}')">👎</button><span>Helpful?</span></div>`:'';
