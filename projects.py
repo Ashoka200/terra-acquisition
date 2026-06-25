@@ -55,20 +55,41 @@ def create_project(name, ptype, refs=None, fixes=None, source_path=None, column_
          "assumptions": prof.get("assumptions", {}), "rows": rows}
     return save_project(d)
 
+def _num(x):
+    try: return float(x)
+    except (TypeError, ValueError): return x
+
 def update_profile(pid, patch):
-    """patch = {'metrics':[{key,weight,on}], 'tiers':{...}, 'assumptions':{...}}"""
+    """patch may include metrics (update or add), gate, tiers, risk, assumptions."""
     d = get_project(pid)
     if not d: return None
+    prof = d["profile"]
     if "metrics" in patch:
-        by = {m["key"]: m for m in d["profile"]["metrics"]}
+        by = {m["key"]: m for m in prof["metrics"]}
         for upd in patch["metrics"]:
-            if upd["key"] in by:
-                if "weight" in upd: by[upd["key"]]["weight"] = float(upd["weight"])
-                if "on" in upd: by[upd["key"]]["on"] = bool(upd["on"])
-    if "add_metric" in patch:        # user-added metric (points at an existing column)
-        d["profile"]["metrics"].append(patch["add_metric"])
-    if "tiers" in patch: d["profile"]["tiers"].update(patch["tiers"])
-    if "assumptions" in patch: d["assumptions"].update(patch["assumptions"])
+            k = upd.get("key")
+            if k in by:
+                if "weight" in upd: by[k]["weight"] = float(upd["weight"])
+                if "on" in upd: by[k]["on"] = bool(upd["on"])
+            elif upd.get("label") and upd.get("input") and upd.get("norm"):  # brand-new metric
+                upd["weight"] = float(upd.get("weight", 0)); upd["on"] = True
+                prof["metrics"].append(upd)
+    if "add_metric" in patch:
+        prof["metrics"].append(patch["add_metric"])
+    if "gate" in patch:
+        gby = {g["field"]: g for g in prof["gate"]}
+        for upd in patch["gate"]:
+            g = gby.get(upd.get("field"))
+            if not g: continue
+            for f in ("lo", "hi", "value"):
+                if f in upd and f in g: g[f] = _num(upd[f])
+    if "tiers" in patch:
+        prof["tiers"].update({k: float(v) for k, v in patch["tiers"].items()})
+    if "risk" in patch:
+        prof["risk"].update({k: float(v) for k, v in patch["risk"].items()})
+    if "assumptions" in patch:
+        clean = {k: _num(v) for k, v in patch["assumptions"].items()}
+        d["assumptions"].update(clean); prof.setdefault("assumptions", {}).update(clean)
     return save_project(d)
 
 def apply_map(df, column_map):

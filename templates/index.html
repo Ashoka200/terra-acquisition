@@ -43,6 +43,17 @@ body{margin:0;font-family:Inter,system-ui,sans-serif;color:var(--ink);background
 .mrow .nk{font-size:11px;color:var(--mut);text-align:right}
 .kv{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line2);font-size:13.5px}
 .kv b{font-variant-numeric:tabular-nums}
+.ekv{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--line2);font-size:13.5px;gap:10px}
+.ekv span:first-child{color:var(--ink2)}
+.ein{height:32px;border:1px solid var(--line);border-radius:8px;padding:0 9px;font-size:13px;width:94px;text-align:right;outline:none}
+.ein:focus{border-color:var(--emer);box-shadow:0 0 0 3px rgba(14,157,110,.1)}
+.ein.wide{width:150px;text-align:left}
+.mrow .rm{cursor:pointer;color:var(--faint);font-weight:700}.mrow .rm:hover{color:var(--red)}
+.addbox{margin-top:12px;border:1px dashed var(--line);border-radius:11px;padding:13px;display:none;background:#fbfcfe}
+.addbox.on{display:block}
+.addbox .r2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.addbox label{font-size:11px;color:var(--mut);font-weight:600}
+.addbox input,.addbox select{width:100%;height:34px;border:1px solid var(--line);border-radius:8px;padding:0 9px;font-size:13px}
 .modal{position:fixed;inset:0;background:rgba(11,19,32,.5);display:none;place-items:center;z-index:70}
 .modal.on{display:grid}
 .modal .box{background:#fff;border-radius:16px;padding:26px;width:420px;box-shadow:var(--shadow-lg)}
@@ -97,6 +108,11 @@ thead th:first-child,thead th.l{text-align:left}
 tbody td{padding:11px 12px;border-bottom:1px solid var(--line2);text-align:right;font-variant-numeric:tabular-nums}
 tbody td:first-child,tbody td.l{text-align:left}
 tbody tr{cursor:pointer}tbody tr:hover{background:var(--emer-l)}
+/* freeze header row + first column (Address) in the Targets table */
+#ttable thead th{z-index:2}
+#ttable td:first-child,#ttable th:first-child{position:sticky;left:0;background:#fff}
+#ttable thead th:first-child{background:#eef2f8;z-index:3}
+#ttable tbody tr:hover td:first-child{background:var(--emer-l)}
 .sbar{height:6px;border-radius:4px;background:#eef1f6;overflow:hidden;width:62px;display:inline-block;vertical-align:middle;margin-right:7px}
 .sbar i{display:block;height:100%;background:linear-gradient(90deg,#13b87f,var(--emer-d))}
 .filters{display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-bottom:16px}
@@ -721,21 +737,55 @@ async function createProject(){const name=$('#np_name').value.trim()||'Untitled'
  const r=await post('/api/project/create',body);await loadProjects();$('#projSel').value=r.id;await activateProj(r.id);closeSetup();
  if(r.scored_rows&&typeof r.scored_rows==='string')alert('Project created. Scoring note: '+r.scored_rows);
  document.querySelector('#nav a[data-v=studio]').click();}
+let STUDIO=null, NEWMETRICS=[];
 async function loadStudio(){let a;try{a=await get('/api/active');}catch(e){return}
- $('#studioSub').textContent=`${a.name} · ${a.type} — ${a.profile.label}. Editing changes the model; re-score to apply to the universe.`;
+ STUDIO=a; NEWMETRICS=[];
+ $('#studioSub').textContent=`${a.name} · ${a.type} — ${a.profile.label}. Every field is editable; add metrics below, then Save model (re-score to apply to the universe).`;
  $('#bbType').textContent=a.type;
- $('#buybox').innerHTML=a.profile.gate.map(g=>{let v=g.op==='between'?`${fmtv(g.lo)} – ${fmtv(g.hi)}`:g.op==='eq'?g.value:g.op==='in'?g.value.join(', '):g.op==='ge'?'≥ '+fmtv(g.value):g.op==='truthy'?'required':'';
-   return `<div class="kv"><span>${g.field}</span><b>${v}</b></div>`;}).join('');
+ $('#buybox').innerHTML=a.profile.gate.map(g=>{
+   if(g.op==='between')return `<div class="ekv"><span>${g.field}</span><span><input class="ein gin" data-g="${g.field}" data-k="lo" value="${g.lo}"> – <input class="ein gin" data-g="${g.field}" data-k="hi" value="${g.hi}"></span></div>`;
+   if(g.op==='ge')return `<div class="ekv"><span>${g.field} (≥)</span><input class="ein gin" data-g="${g.field}" data-k="value" value="${g.value}"></div>`;
+   if(g.op==='eq')return `<div class="ekv"><span>${g.field}</span><input class="ein wide gin" data-g="${g.field}" data-k="value" value="${esc(String(g.value))}"></div>`;
+   if(g.op==='in')return `<div class="ekv"><span>${g.field}</span><b>${g.value.join(', ')}</b></div>`;
+   return `<div class="ekv"><span>${g.field}</span><b>required</b></div>`;}).join('');
  const t=a.profile.tiers,rk=a.profile.risk;
- $('#tiers').innerHTML=`<div class="kv"><span>Tier 1 (score ≥)</span><b>${t.tier1}</b></div><div class="kv"><span>Tier 2 (score ≥)</span><b>${t.tier2}</b></div><div class="kv"><span>Risk sensitivity (max haircut)</span><b>${pct(rk.sensitivity)}</b></div><div class="kv"><span>Risk-neutral baseline</span><b>${rk.baseline}</b></div>`;
- const tot=a.profile.metrics.filter(m=>m.on!==false).reduce((s,m)=>s+m.weight,0);
- $('#metrics').innerHTML=a.profile.metrics.map(m=>`<div class="mrow"><input type="checkbox" class="mtoggle" data-k="${m.key}" ${m.on!==false?'checked':''}><div>${m.label}<span class="pill">${m.pillar}</span></div><input type="number" step="0.5" class="mweight" data-k="${m.key}" value="${m.weight}"><div class="nk">${m.norm.kind}</div></div>`).join('')+`<div class="kv" style="margin-top:8px"><span>Total weight</span><b id="wtot">${Math.round(tot*10)/10}</b></div>`;
- $('#metrics').oninput=recalcW;
+ $('#tiers').innerHTML=`<div class="ekv"><span>Tier 1 (score ≥)</span><input class="ein" id="t_tier1" value="${t.tier1}"></div>
+   <div class="ekv"><span>Tier 2 (score ≥)</span><input class="ein" id="t_tier2" value="${t.tier2}"></div>
+   <div class="ekv"><span>Risk sensitivity (0–1 max haircut)</span><input class="ein" id="t_rsens" value="${rk.sensitivity}"></div>
+   <div class="ekv"><span>Risk-neutral baseline (0–100)</span><input class="ein" id="t_rbase" value="${rk.baseline}"></div>`;
+ renderMetrics();
  const as=(a.assumptions&&Object.keys(a.assumptions).length)?a.assumptions:(a.profile.assumptions||{});
- $('#assump').innerHTML=Object.entries(as).map(([k,v])=>`<div class="kv"><span>${k.replace(/_/g,' ')}</span><b>${typeof v==='number'&&v<1&&v>0?pct(v,2):f(v,2)}</b></div>`).join('')||'<div class="muted">Per-type defaults applied.</div>';}
+ $('#assump').innerHTML=Object.entries(as).map(([k,v])=>`<div class="ekv"><span>${k.replace(/_/g,' ')}</span><input class="ein ain" data-a="${k}" value="${v}"></div>`).join('')||'<div class="muted">Per-type defaults applied.</div>';}
+function renderMetrics(){const ms=STUDIO.profile.metrics.concat(NEWMETRICS);
+ const tot=ms.filter(m=>m.on!==false).reduce((s,m)=>s+(+m.weight||0),0);
+ $('#metrics').innerHTML=ms.map(m=>`<div class="mrow"><input type="checkbox" class="mtoggle" data-k="${m.key}" ${m.on!==false?'checked':''}><div>${esc(m.label)}<span class="pill">${m.pillar}</span>${m._new?' <span class="pill" style="background:#e7f7f0;color:#0a7a55">new</span>':''}</div><input type="number" step="0.5" class="mweight" data-k="${m.key}" value="${m.weight}"><div class="nk">${m.norm.kind}</div></div>`).join('')+
+   `<div class="kv" style="margin-top:8px"><span>Total weight</span><b id="wtot">${Math.round(tot*10)/10}</b></div>
+    <button class="btn ghost" style="margin-top:10px" onclick="document.getElementById('addbox').classList.toggle('on')">+ Add metric</button>
+    <div class="addbox" id="addbox">
+      <div class="r2"><div><label>Label</label><input id="nm_label" placeholder="e.g. Flood-safe"></div><div><label>Pillar</label><select id="nm_pillar"><option>Return</option><option>Motivation</option><option>Location</option><option>Fit</option><option>Quality</option></select></div></div>
+      <div class="r2"><div><label>Source column</label><input id="nm_input" placeholder="column in scored data, e.g. risk_sc"></div><div><label>Weight</label><input id="nm_weight" value="5"></div></div>
+      <div class="r2"><div><label>Normalization</label><select id="nm_kind"><option value="band">band (higher = better)</option><option value="band_inv">band_inv (lower = better)</option><option value="passthrough">passthrough (already 0–100)</option></select></div><div><label>Low / High</label><div style="display:flex;gap:6px"><input id="nm_lo" placeholder="lo"><input id="nm_hi" placeholder="hi"></div></div></div>
+      <button class="btn emer" style="width:100%;justify-content:center" onclick="addMetric()">Add metric</button>
+      <div class="note" style="font-size:11px;margin-top:6px">The source column must exist in the scored data. New metrics take effect on the next re-score.</div>
+    </div>`;
+ $('#metrics').oninput=recalcW;}
+function addMetric(){const label=$('#nm_label').value.trim(),input=$('#nm_input').value.trim();
+ if(!label||!input){alert('Label and source column are required.');return}
+ const kind=$('#nm_kind').value,norm={kind}; if(kind!=='passthrough'){norm.lo=+$('#nm_lo').value||0;norm.hi=+$('#nm_hi').value||1;}
+ NEWMETRICS.push({key:'m_'+label.toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,12)+'_'+NEWMETRICS.length,label,pillar:$('#nm_pillar').value,input,weight:+$('#nm_weight').value||5,on:true,norm,_new:true});
+ renderMetrics();}
 function recalcW(){const tot=[...document.querySelectorAll('.mweight')].reduce((s,i)=>s+(document.querySelector('.mtoggle[data-k="'+i.dataset.k+'"]').checked?(+i.value||0):0),0);const el=$('#wtot');if(el)el.textContent=Math.round(tot*10)/10;}
-async function saveProfile(){const metrics=[...document.querySelectorAll('.mweight')].map(i=>({key:i.dataset.k,weight:+i.value,on:document.querySelector('.mtoggle[data-k="'+i.dataset.k+'"]').checked}));
- await post('/api/project/profile',{patch:{metrics}});alert('Model saved. Run refresh.py to re-score the universe with the new weights.');loadStudio();}
+async function saveProfile(){
+ const existKeys=new Set(STUDIO.profile.metrics.map(m=>m.key));
+ const metrics=[...document.querySelectorAll('.mweight')].filter(i=>existKeys.has(i.dataset.k)).map(i=>({key:i.dataset.k,weight:+i.value,on:document.querySelector('.mtoggle[data-k="'+i.dataset.k+'"]').checked}));
+ NEWMETRICS.forEach(nm=>{const w=document.querySelector('.mweight[data-k="'+nm.key+'"]'),tg=document.querySelector('.mtoggle[data-k="'+nm.key+'"]');metrics.push(Object.assign({},nm,{weight:w?+w.value:nm.weight,on:tg?tg.checked:true}));});
+ const gate={};document.querySelectorAll('.gin').forEach(i=>{const fld=i.dataset.g;gate[fld]=gate[fld]||{field:fld};gate[fld][i.dataset.k]=i.value;});
+ const tiers={tier1:+$('#t_tier1').value,tier2:+$('#t_tier2').value};
+ const risk={sensitivity:+$('#t_rsens').value,baseline:+$('#t_rbase').value};
+ const assumptions={};document.querySelectorAll('.ain').forEach(i=>{assumptions[i.dataset.a]=i.value;});
+ await post('/api/project/profile',{patch:{metrics,gate:Object.values(gate),tiers,risk,assumptions}});
+ alert('Model saved — buy box, weights, tiers, risk and assumptions updated. Run refresh.py to re-score the universe.');
+ loadStudio();}
 
 // ---------------- INIT ----------------
 async function loadAll(){let h;try{h=await get('/health');}catch(e){h={rows:(typeof EMBED!=='undefined'?EMBED.rows:0)}}$('#rowcount').textContent=Number(h.rows).toLocaleString();loadDash();}
