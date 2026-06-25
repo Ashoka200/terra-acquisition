@@ -10,6 +10,12 @@ title Terra - Acquisition Intelligence (local)
 REM keep all runtime data inside this folder (self-contained)
 set "RE_DATA=%~dp0data"
 
+REM --- OPTIONAL: paste keys between the quotes to unlock extra features ---
+REM Live for-sale listings on the map + zip download (free tier at rentcast.io/api):
+set "RENTCAST_API_KEY="
+REM Full ATLAS chat (otherwise ATLAS runs in offline rule-based mode):
+set "ANTHROPIC_API_KEY="
+
 echo Installing/updating Python packages (first run only)...
 python -m pip install -r requirements.txt --quiet --disable-pip-version-check
 
