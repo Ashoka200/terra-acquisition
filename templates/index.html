@@ -421,6 +421,7 @@ async function geoSearch(){const q=$('#mapq').value.trim();if(!q)return;if(!MAP)
     <div style="display:flex;gap:5px;margin-top:7px;flex-wrap:wrap">
       <button ${bs} onclick="setBase('sat')">🛰 Satellite</button>
       <a ${bs} target="_blank" href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lon}">🧍 Street View</a>
+      <button ${bs} onclick="openSite(${lat},${lon})">🧭 Site intel</button>
       ${zip?`<button ${bs} onclick="dl('/api/listings.xlsx?zip=${zip}')">⤓ For-sale (${zip})</button>`:''}
     </div>`;
   GEOMARK=L.marker([lat,lon]).addTo(MAP).bindPopup(pop,{minWidth:240}).openPopup();
@@ -441,7 +442,7 @@ function initMap(){if(MAP){MAP.invalidateSize();return}
  MAP=L.map('lmap',{zoomControl:true,preferCanvas:true}).setView([32.8,-89],5);
  BASE_LIGHT=L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:19,attribution:'© OpenStreetMap © CARTO'});
  BASE_SAT=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'© Esri'});
- BASE_LIGHT.addTo(MAP);loadMap();}
+ BASE_LIGHT.addTo(MAP);MAP.on('click',e=>openSite(e.latlng.lat,e.latlng.lng));loadMap();}
 function scoreColor(s){return s>=85?'#0a7a55':s>=78?'#13b87f':'#7fd9b6'}
 function setBase(b){if(!MAP)return;
  if(b==='sat'){MAP.removeLayer(BASE_LIGHT);BASE_SAT.addTo(MAP);BASE_SAT.bringToBack();}
@@ -522,6 +523,7 @@ async function openDrawer(apn){
      <a class="btn ghost" style="flex:1;justify-content:center" target="_blank" href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${r.lat},${r.lon}">Street View</a>
      <a class="btn ghost" style="flex:1;justify-content:center" target="_blank" href="https://www.google.com/maps/search/?api=1&query=${r.lat},${r.lon}">Google Maps</a>
    </div>`:''}
+   ${r.lat?`<button class="btn ghost" style="width:100%;justify-content:center;margin-top:8px" onclick="openSite(${r.lat},${r.lon})">🧭 Site intelligence — best use, facilities, flood</button>`:''}
    <button class="btn ghost" style="width:100%;justify-content:center;margin-top:8px" onclick="dl('/api/report/property.pdf?apn='+encodeURIComponent('${r.apn}'))">⤓ Export property PDF</button>
    <button class="btn emer" style="width:100%;justify-content:center;margin-top:10px" onclick="toUW(${Math.round(r.avm*0.9)},${r.market_rent})">Open in underwriting →</button>
    <div class="disc"><h3>💬 Team discussion</h3><div id="thread"></div>
@@ -535,6 +537,26 @@ async function openDrawer(apn){
   L.circleMarker([r.lat,r.lon],{radius:9,color:'#fff',weight:2,fillColor:'#0e9d6e',fillOpacity:1}).addTo(DMAP);}},120);
 }
 function closeDrawer(){$('#scrim').classList.remove('on');$('#drawer').classList.remove('on')}
+async function openSite(lat,lon){
+ $('#drawer').innerHTML='<div class="db" style="padding:60px 22px;text-align:center;color:#6b7689"><span class="spin"></span><br><br>Analyzing site — facilities, flood zone & best use…</div>';
+ $('#scrim').classList.add('on');$('#drawer').classList.add('on');
+ let r;try{r=await get('/api/site?lat='+lat+'&lon='+lon);}catch(e){r={error:'request failed'}}
+ const close='<span class="close" onclick="closeDrawer()">✕</span>';
+ if(r.error&&!r.hbu){$('#drawer').innerHTML=`<div class="dh"><div style="display:flex;justify-content:space-between"><b>Site Intelligence</b>${close}</div></div><div class="db"><div class="note">${esc(r.error)}</div><button class="btn emer" style="margin-top:12px" onclick="openSite(${lat},${lon})">Retry</button></div>`;return}
+ const fl=r.flood||{};
+ const hbu=(r.hbu||[]).map((u,i)=>`<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:baseline"><b>${i===0?'★ ':''}${esc(u.use)}</b><span class="mono" style="font-weight:800;color:${i===0?'#0a7a55':'#6b7689'}">${u.score}</span></div>
+   <div style="height:8px;background:#eef1f6;border-radius:5px;overflow:hidden;margin:5px 0"><i style="display:block;height:100%;width:${u.score}%;background:${i===0?'linear-gradient(90deg,#13b87f,#0a7a55)':'#9fb0c8'}"></i></div>
+   <div class="note" style="font-size:12px">${u.why&&u.why.length?esc(u.why.join(' · ')):'—'}</div></div>`).join('');
+ const fac=(r.facilities||[]).map(f=>`<div class="kv"><span>${esc(f.cat.replace(/_/g,' '))}</span><b>${f.dist_mi} mi <span class="muted" style="font-weight:400">${esc(f.name)}</span></b></div>`).join('')||'<div class="muted">—</div>';
+ const risks=(r.risks||[]).map(x=>`<div class="dmsg"><b>${esc(x.type)}</b> <span class="badge ${(x.level||'').toLowerCase().includes('high')?'b-warn':'b-nm'}">${esc(x.level)}</span><br><span class="muted" style="font-size:12px">${esc(x.detail)}${x.source&&x.source!=='—'?' · '+esc(x.source):''}</span></div>`).join('');
+ $('#drawer').innerHTML=`<div class="dh"><div style="display:flex;justify-content:space-between"><span class="badge ${fl.sfha?'b-warn':'b-ok'}">Flood: ${esc(fl.zone||'?')}</span>${close}</div>
+   <h2 style="margin:10px 0 2px;font-family:Fraunces,serif;font-size:20px">Site Intelligence</h2><div class="muted">${(+lat).toFixed(4)}, ${(+lon).toFixed(4)} · ${esc(fl.risk||'')}</div></div>
+   <div class="db">
+     <h3 style="font-size:14px;margin:2px 0 12px">Highest &amp; Best Use <span class="muted" style="font-weight:400">— market-signal screen</span></h3>${hbu}
+     <h3 style="font-size:14px;margin:20px 0 8px">Distance to facilities</h3>${fac}
+     <h3 style="font-size:14px;margin:20px 0 8px">Risk flags</h3>${risks}
+     <div class="note" style="margin-top:14px;font-size:11.5px">${esc(r.notes||'')}</div>
+   </div>`;}
 let DKEY=null;
 async function loadThread(){if(!DKEY)return;let msgs=[];try{msgs=await get('/api/thread?key='+encodeURIComponent(DKEY));}catch(e){}
  const el=$('#thread');if(!el)return;
@@ -620,7 +642,7 @@ function renderBlocks(blocks){if(!blocks||!blocks.length)return '';
   if(b.type==='note')return `<div class="note" style="margin-top:8px">${md(b.text)}</div>`;
   return '';}).join('');}
 const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-const md=s=>esc(s).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\n/g,'<br>');
+const md=s=>esc(s).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\*([^*\n]+?)\*/g,'<em>$1</em>').replace(/_([^_\n]+?)_/g,'<em>$1</em>').replace(/`([^`]+?)`/g,'<code>$1</code>').replace(/\n/g,'<br>');
 
 // ---------------- PROJECTS / MODEL STUDIO ----------------
 let SELType='SFR';

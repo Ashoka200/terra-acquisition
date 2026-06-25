@@ -298,6 +298,15 @@ def listings_near():
         return jsonify(error="lat & lon required"), 400
     return jsonify(listings.sale_near(lat, lon, float(request.args.get("radius", 3))))
 
+import site_intel
+@app.route("/api/site")
+def api_site():
+    try:
+        lat = float(request.args["lat"]); lon = float(request.args["lon"])
+    except Exception:
+        return jsonify(error="lat & lon required"), 400
+    return jsonify(site_intel.analyze(lat, lon))
+
 @app.route("/api/listings.xlsx")
 def listings_download():
     zc = request.args.get("zip", "").strip()
