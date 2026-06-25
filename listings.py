@@ -41,13 +41,23 @@ def _norm(x):
             "yearbuilt": x.get("yearBuilt"), "type": x.get("propertyType"), "status": x.get("status"),
             "listed": (x.get("listedDate") or "")[:10], "dom": x.get("daysOnMarket")}
 
+def _friendly(e):
+    code = getattr(getattr(e, "response", None), "status_code", None)
+    if code in (401, 403):
+        return ("RentCast rejected the key (HTTP %s). Activate your API subscription — the free plan — "
+                "at app.rentcast.io/app/api, and make sure RENTCAST_API_KEY matches the active key "
+                "(no extra spaces). Creating a key is not enough; the subscription must be activated." % code)
+    if code == 429:
+        return "RentCast rate/quota limit hit (HTTP 429) — the free plan is 50 calls/month. Upgrade or wait."
+    return f"listings request failed: {str(e)[:140]}"
+
 def sale_near(lat, lon, radius=3):
     if not provider(): return _need()
     try:
         data = _rentcast({"latitude": lat, "longitude": lon, "radius": radius})
         return {"provider": "rentcast", "count": len(data), "listings": [_norm(x) for x in data]}
     except Exception as e:
-        return {"provider": "rentcast", "error": f"listings request failed: {str(e)[:120]}"}
+        return {"provider": "rentcast", "error": _friendly(e)}
 
 def sale_by_zip(zipcode):
     if not provider(): return _need()
@@ -55,4 +65,4 @@ def sale_by_zip(zipcode):
         data = _rentcast({"zipCode": str(zipcode)})
         return {"provider": "rentcast", "count": len(data), "listings": [_norm(x) for x in data]}
     except Exception as e:
-        return {"provider": "rentcast", "error": f"listings request failed: {str(e)[:120]}"}
+        return {"provider": "rentcast", "error": _friendly(e)}
