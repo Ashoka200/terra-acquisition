@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import pandas as pd, numpy as np
 import re_engine as E, re_underwrite as U
 
-DATA = os.path.join(os.path.dirname(__file__), "..", "..", "data")
+DATA = os.environ.get("RE_DATA") or os.path.join(os.path.dirname(__file__), "..", "..", "data")
 P, F = 0, 0
 def ok(name, cond):
     global P, F
