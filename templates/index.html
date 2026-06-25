@@ -139,6 +139,10 @@ select option{background:#fff;color:#0b1320}
 .mapsearch button{background:var(--emer);color:#fff;border:0;border-radius:8px;padding:0 15px;font-weight:600;font-size:13px;cursor:pointer}
 .mapsearch button:hover{background:var(--emer-d)}
 @media(max-width:760px){.mapsearch input{width:150px}}
+.maplayers{position:absolute;z-index:500;top:62px;right:16px;display:flex;flex-direction:column;gap:6px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-lg);padding:6px}
+.maplayers .seg.sm{background:#eef1f6}
+.gchip{display:inline-flex;align-items:center;gap:5px;border:1px solid #dde3ec;background:#fff;border-radius:9px;padding:7px 12px;font-size:13px;font-weight:600;color:#0b1320;cursor:pointer;text-decoration:none}
+.gchip:hover{border-color:var(--emer);color:var(--emer-d);background:var(--emer-l)}
 /* drawer */
 .scrim{position:fixed;inset:0;background:rgba(11,19,32,.42);backdrop-filter:blur(2px);opacity:0;pointer-events:none;transition:.2s;z-index:60}
 .scrim.on{opacity:1;pointer-events:auto}
@@ -248,17 +252,17 @@ select option{background:#fff;color:#0b1320}
            <div class="fld" style="margin-bottom:9px"><label>Min gross yield</label><input id="m_yield" placeholder="e.g. 0.10"></div>
            <div class="fld" style="margin-bottom:11px"><label>Max AVM</label><input id="m_price" placeholder="e.g. 350000"></div>
            <button class="btn emer" style="width:100%;justify-content:center" onclick="loadMap()">Apply</button>
-           <div style="display:flex;gap:8px;margin-top:10px">
-             <div class="seg sm" style="flex:1"><button id="mv_mk" class="on" onclick="setMapView('markers')">Pins</button><button id="mv_ht" onclick="setMapView('heat')">Heat</button></div>
-             <div class="seg sm" style="flex:1"><button id="mb_lt" class="on" onclick="setBase('light')">Map</button><button id="mb_sat" onclick="setBase('sat')">Sat</button></div>
-           </div>
+         </div>
+         <div class="maplayers">
+           <div class="seg sm"><button id="mb_lt" class="on" onclick="setBase('light')">Map</button><button id="mb_sat" onclick="setBase('sat')">Satellite</button></div>
+           <div class="seg sm"><button id="mv_mk" class="on" onclick="setMapView('markers')">Pins</button><button id="mv_ht" onclick="setMapView('heat')">Heat</button></div>
          </div>
          <div class="mapstat" id="mapstat">…</div>
          <div class="legend"><div style="font-weight:700;margin-bottom:5px">Total score</div>
            <div class="row"><span class="sw" style="background:#0a7a55"></span>85+</div>
            <div class="row"><span class="sw" style="background:#13b87f"></span>78–85</div>
            <div class="row"><span class="sw" style="background:#7fd9b6"></span>70–78</div>
-           <div class="row" style="margin-top:5px;border-top:1px solid var(--line2);padding-top:5px"><span class="sw" style="background:#e3961a"></span>For-sale (live)</div>
+           <div id="typeLegend"></div>
          </div>
        </div>
      </section>
@@ -416,13 +420,12 @@ async function geoSearch(){const q=$('#mapq').value.trim();if(!q)return;if(!MAP)
   const lat=+r[0].lat,lon=+r[0].lon,zip=((r[0].address&&r[0].address.postcode)||'').split(/[;,]/)[0].trim();
   MAP.setView([lat,lon],14);
   if(GEOMARK)MAP.removeLayer(GEOMARK);
-  const bs='style="border:1px solid #d8dee8;background:#fff;border-radius:7px;padding:4px 8px;font-size:12px;cursor:pointer;text-decoration:none;color:#0b1320;display:inline-block"';
   const pop=`<b>${q}</b><br><span style="color:#6b7689;font-size:11px">${r[0].display_name||''}</span>
-    <div style="display:flex;gap:5px;margin-top:7px;flex-wrap:wrap">
-      <button ${bs} onclick="setBase('sat')">🛰 Satellite</button>
-      <a ${bs} target="_blank" href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lon}">🧍 Street View</a>
-      <button ${bs} onclick="openSite(${lat},${lon})">🧭 Site intel</button>
-      ${zip?`<button ${bs} onclick="dl('/api/listings.xlsx?zip=${zip}')">⤓ For-sale (${zip})</button>`:''}
+    <div style="display:flex;gap:6px;margin-top:9px;flex-wrap:wrap">
+      <button class="gchip" onclick="setBase('sat')">🛰 Satellite</button>
+      <a class="gchip" target="_blank" href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lon}">🧍 Street View</a>
+      <button class="gchip" onclick="openSite(${lat},${lon})">🧭 Site intel</button>
+      ${zip?`<button class="gchip" onclick="dl('/api/listings.xlsx?zip=${zip}')">⤓ For-sale (${zip})</button>`:''}
     </div>`;
   GEOMARK=L.marker([lat,lon]).addTo(MAP).bindPopup(pop,{minWidth:240}).openPopup();
   $('#mapstat').textContent='📍 '+q;
@@ -432,14 +435,27 @@ async function loadListingsNear(lat,lon){
  let res;try{res=await get('/api/listings/near?lat='+lat+'&lon='+lon+'&radius=3');}catch(e){return}
  if(LISTLAYER)MAP.removeLayer(LISTLAYER);
  if(!res||res.error||!res.listings){if(res&&res.how)$('#mapstat').innerHTML='ℹ️ for-sale layer off — '+res.how;return}
- LISTLAYER=L.layerGroup();
- res.listings.forEach(x=>{if(x.lat&&x.lon)L.circleMarker([x.lat,x.lon],{radius:6,color:'#fff',weight:1,fillColor:'#e3961a',fillOpacity:.95})
+ LISTLAYER=L.layerGroup(); const seen={};
+ res.listings.forEach(x=>{if(x.lat&&x.lon){const col=typeColor(x.type);seen[typeLabel(x.type)]=col;
+   L.circleMarker([x.lat,x.lon],{radius:7,color:'#fff',weight:1.5,fillColor:col,fillOpacity:.95})
    .bindPopup(`<b>$${(x.price||0).toLocaleString()}</b> · ${x.beds??'?'}bd/${x.baths??'?'}ba · ${(x.sqft||0).toLocaleString()} sf<br>${x.address||''}<br><span style="color:#6b7689">${x.type||''}${x.dom!=null?' · '+x.dom+' days on market':''}</span>`)
-   .addTo(LISTLAYER);});
+   .addTo(LISTLAYER);}});
  LISTLAYER.addTo(MAP);
- $('#mapstat').innerHTML=`📍 ${res.count} for-sale nearby · amber pins`;}
+ const tl=$('#typeLegend'); if(tl)tl.innerHTML='<div style="font-weight:700;margin:6px 0 4px;border-top:1px solid var(--line2);padding-top:5px">For-sale by type</div>'+Object.entries(seen).map(([k,c])=>`<div class="row"><span class="sw" style="background:${c}"></span>${k}</div>`).join('');
+ $('#mapstat').innerHTML=`📍 ${res.count} for-sale nearby`;}
+function typeColor(t){t=(t||'').toLowerCase();
+ if(t.includes('single')||t.includes('residential'))return '#0e9d6e';
+ if(t.includes('condo')||t.includes('town'))return '#14b8c4';
+ if(t.includes('multi')||t.includes('apart'))return '#2f6fed';
+ if(t.includes('land'))return '#c98a1b';
+ if(t.includes('commercial')||t.includes('retail')||t.includes('office'))return '#7c5cff';
+ if(t.includes('hotel')||t.includes('hospitality'))return '#e0584f';
+ if(t.includes('manufactured')||t.includes('mobile'))return '#8a94a3';
+ return '#e3961a';}
+function typeLabel(t){t=(t||'Other');return t.length>18?t.slice(0,18):t;}
 function initMap(){if(MAP){MAP.invalidateSize();return}
- MAP=L.map('lmap',{zoomControl:true,preferCanvas:true}).setView([32.8,-89],5);
+ MAP=L.map('lmap',{zoomControl:false,preferCanvas:true}).setView([32.8,-89],5);
+ L.control.zoom({position:'bottomright'}).addTo(MAP);
  BASE_LIGHT=L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:19,attribution:'© OpenStreetMap © CARTO'});
  BASE_SAT=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'© Esri'});
  BASE_LIGHT.addTo(MAP);MAP.on('click',e=>openSite(e.latlng.lat,e.latlng.lng));loadMap();}
