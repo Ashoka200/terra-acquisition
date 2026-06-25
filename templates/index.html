@@ -30,9 +30,12 @@ body{margin:0;font-family:Inter,system-ui,sans-serif;color:var(--ink);background
 .nav a:hover{background:#162033;color:#fff}
 .nav a.on{background:linear-gradient(90deg,rgba(14,157,110,.22),rgba(14,157,110,.05));color:#fff;box-shadow:inset 2px 0 0 var(--emer)}
 .side .sp{flex:1}
-.projbar{display:flex;gap:6px;margin:4px 2px 6px}
-.projbar select{flex:1;background:#162033;color:#e7edf6;border:1px solid #243250;border-radius:9px;padding:8px 10px;font-size:13px;font-weight:600;outline:none}
-.projbar button{background:#1e9d6e;color:#fff;border:0;border-radius:9px;width:38px;font-size:18px;font-weight:700;cursor:pointer}
+.projlabel{font-size:10px;letter-spacing:.13em;color:#5d6a82;font-weight:700;margin:6px 5px 5px}
+.projbar{display:flex;gap:7px;margin:0 2px 10px}
+.projbar select{flex:1;min-width:0;background:#11203a;color:#eef3fb;border:1px solid #26344f;border-radius:10px;padding:10px 12px;font-size:13px;font-weight:600;outline:none;text-overflow:ellipsis}
+.projbar select:hover{border-color:#34507e}
+.projbar button{background:linear-gradient(135deg,#0e9d6e,#13b87f);color:#fff;border:0;border-radius:10px;width:40px;font-size:20px;font-weight:600;cursor:pointer;flex:0 0 40px;line-height:1}
+.projbar button:hover{filter:brightness(1.08)}
 .freshchip{background:#121b2c;border:1px solid #1e2940;border-radius:11px;padding:11px 12px;font-size:12px;color:#9aa6ba}
 .mrow{display:grid;grid-template-columns:30px 1fr 90px 110px;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line2)}
 .mrow .pill{font-size:10px;background:#eef2f8;color:#5a6577;border-radius:6px;padding:2px 7px;font-weight:700;margin-left:6px}
@@ -129,7 +132,13 @@ select option{background:#fff;color:#0b1320}
 .mfilters h4{margin:0 0 10px;font-size:13px}
 .legend{position:absolute;z-index:500;bottom:22px;left:16px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:11px 13px;font-size:12px}
 .legend .row{display:flex;align-items:center;gap:7px;margin:3px 0}.legend .sw{width:12px;height:12px;border-radius:50%}
-.mapstat{position:absolute;z-index:500;top:16px;right:16px;background:#0b1320;color:#fff;border-radius:11px;padding:9px 14px;font-size:13px;font-weight:600;box-shadow:var(--shadow-lg)}
+.mapstat{position:absolute;z-index:500;top:16px;right:16px;background:#0b1320;color:#fff;border-radius:11px;padding:9px 14px;font-size:13px;font-weight:600;box-shadow:var(--shadow-lg);max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mapsearch{position:absolute;z-index:500;top:16px;left:50%;transform:translateX(-50%);display:flex;gap:5px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-lg);padding:6px}
+.mapsearch svg{width:17px;height:17px;color:var(--faint);align-self:center;margin-left:6px}
+.mapsearch input{width:280px;height:34px;border:0;outline:none;padding:0 6px;font-size:13.5px;background:transparent}
+.mapsearch button{background:var(--emer);color:#fff;border:0;border-radius:8px;padding:0 15px;font-weight:600;font-size:13px;cursor:pointer}
+.mapsearch button:hover{background:var(--emer-d)}
+@media(max-width:760px){.mapsearch input{width:150px}}
 /* drawer */
 .scrim{position:fixed;inset:0;background:rgba(11,19,32,.42);backdrop-filter:blur(2px);opacity:0;pointer-events:none;transition:.2s;z-index:60}
 .scrim.on{opacity:1;pointer-events:auto}
@@ -186,6 +195,7 @@ select option{background:#fff;color:#0b1320}
  <!-- SIDEBAR -->
  <aside class="side">
    <div class="brand"><div class="mk">▲</div><div><b>Terra</b><small>Acquisition IQ</small></div></div>
+   <div class="projlabel">WORKSPACE</div>
    <div class="projbar"><select id="projSel" onchange="activateProj(this.value)"></select><button onclick="openSetup()" title="New project">+</button></div>
    <nav class="nav" id="nav">
      <a data-v="dash" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg><span>Dashboard</span></a>
@@ -230,6 +240,7 @@ select option{background:#fff;color:#0b1320}
      <section id="map" class="view">
        <div class="mapwrap">
          <div id="lmap" style="height:100%"></div>
+         <div class="mapsearch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><input id="mapq" placeholder="Search any address — flies there & drops a pin" onkeydown="if(event.key==='Enter')geoSearch()"><button onclick="geoSearch()">Search</button></div>
          <div class="mfilters">
            <h4>Filter targets</h4>
            <div class="fld" style="margin-bottom:9px"><label>Tier</label><select id="m_tier"><option>Tier 1 - Strong</option><option>Tier 2 - Moderate</option><option>Tier 3 - Watch</option></select></div>
@@ -396,7 +407,16 @@ function chart(id,type,data,opts){if(CHARTS[id])CHARTS[id].destroy();
  CHARTS[id]=new Chart($('#'+id),{type,data,options:{responsive:true,maintainAspectRatio:false,...opts}})}
 
 // ---------------- MAP ----------------
-let BASE_LIGHT,BASE_SAT,HEAT,MAPVIEW='markers';
+let BASE_LIGHT,BASE_SAT,HEAT,MAPVIEW='markers',GEOMARK=null;
+async function geoSearch(){const q=$('#mapq').value.trim();if(!q)return;if(!MAP){initMap();await new Promise(r=>setTimeout(r,300));}
+ $('#mapstat').innerHTML='<span class="spin"></span>';
+ try{const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent(q),{headers:{'Accept-Language':'en'}}).then(x=>x.json());
+  if(!r||!r.length){$('#mapstat').textContent='Address not found';return}
+  const lat=+r[0].lat,lon=+r[0].lon;MAP.setView([lat,lon],15);
+  if(GEOMARK)MAP.removeLayer(GEOMARK);
+  GEOMARK=L.marker([lat,lon]).addTo(MAP).bindPopup('<b>'+q+'</b><br>'+(r[0].display_name||'')).openPopup();
+  $('#mapstat').textContent='📍 '+q;
+ }catch(e){$('#mapstat').textContent='geocoding needs internet';}}
 function initMap(){if(MAP){MAP.invalidateSize();return}
  MAP=L.map('lmap',{zoomControl:true,preferCanvas:true}).setView([32.8,-89],5);
  BASE_LIGHT=L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:19,attribution:'© OpenStreetMap © CARTO'});
@@ -555,7 +575,9 @@ let st;$('#gsearch').addEventListener('input',e=>{clearTimeout(st);const q=e.tar
   // lightweight: filter client side from a quick lookup
   const l=await post('/api/lookup_property',{query:q});
   if(l.found){$('#sres').innerHTML=`<div onclick="openDrawer('${l.apn}');$('#sres').style.display='none'"><b>${l.address}</b> · ${l.city}, ${l.state} · <span class="badge ${tierBadge(l.tier)}">${l.tier}</span></div>`;$('#sres').style.display='block';}
-  else{$('#sres').innerHTML='<div class="muted">No match</div>';$('#sres').style.display='block';}},250);});
+  else{window.__gq=q;$('#sres').innerHTML=`<div onclick="globalToMap()">📍 Not in this universe — <b>show on the map</b></div><div class="muted" style="font-size:12px">${esc(q)}</div>`;$('#sres').style.display='block';}},250);});
+function globalToMap(){const q=window.__gq||$('#gsearch').value.trim();$('#sres').style.display='none';$('#gsearch').value='';
+ document.querySelector('#nav a[data-v=map]').click();setTimeout(()=>{$('#mapq').value=q;geoSearch();},500);}
 document.addEventListener('click',e=>{if(!e.target.closest('.search'))$('#sres').style.display='none'});
 
 // ---------------- COPILOT ----------------
@@ -584,7 +606,7 @@ const md=s=>esc(s).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\n/g,'<br>');
 let SELType='SFR';
 const fmtv=x=>(x>=1000?'$'+f(x):(x<1&&x>0?pct(x):f(x,0)));
 async function loadProjects(){try{const d=await get('/api/projects');
- $('#projSel').innerHTML=d.projects.map(p=>`<option value="${p.id}" ${p.id===d.active?'selected':''}>${p.name} · ${p.type}</option>`).join('');}catch(e){}}
+ $('#projSel').innerHTML=d.projects.map(p=>`<option value="${p.id}" ${p.id===d.active?'selected':''}>${p.name}</option>`).join('');}catch(e){}}
 async function activateProj(id){try{await post('/api/project/activate',{id});}catch(e){}
  loadAll();const on=document.querySelector('#nav a.on');const v=on?on.dataset.v:'dash';
  if(v==='studio')loadStudio();if(v==='targets')loadTargets();if(v==='map'&&MAP)loadMap();if(v==='port')loadPort();}
