@@ -122,6 +122,19 @@ def t_lookup_property(query):
             for k in ["apn","address","city","state","zip","lat","lon","yearbuilt","sqft","avm",
                       "beds","corp","market_rent","gross_yield","tenure","total_score","tier"]}}
 
+import risk_model
+@app.route("/api/risk", methods=["POST"])
+def api_risk():
+    b = request.get_json(force=True)
+    r = t_lookup_property(b.get("query") or b.get("apn", ""))
+    if not r.get("found"):
+        return jsonify(error="property not found"), 404
+    a = ASSUMP
+    out = risk_model.assess(r, REFS, rate=float(a.get("rate", 0.07)), ltv=float(a.get("ltv", 0.75)),
+                            opex_ratio=float(a.get("opex_ratio", a.get("opex", 0.42))))
+    out["address"] = r.get("address"); out["apn"] = r.get("apn")
+    return jsonify(out)
+
 def t_underwrite(price, monthly_rent, rate=None, ltv=None):
     a = dict(ASSUMP);
     if rate is not None: a["rate"] = rate
@@ -279,6 +292,36 @@ def api_proj_profile():
     b = request.get_json(force=True)
     d = projects.update_profile(b.get("id", ACTIVE_PID), b["patch"])
     return jsonify({"ok": bool(d), "profile": d["profile"] if d else None})
+
+import re_core
+DISPLAY_COLS = ["apn", "address", "city", "state", "zip", "lat", "lon", "yearbuilt", "sqft",
+                "avm", "beds", "corp", "market_rent", "gross_yield", "tenure", "total_score", "tier"]
+@app.route("/api/rescore", methods=["POST"])
+def api_rescore():
+    """Re-run the engine with the active project's CURRENT profile so edits (weights, gate,
+    added/removed metrics, tiers, risk) actually change the Targets/Dashboard/Map."""
+    global SCORED
+    d = projects.get_project(ACTIVE_PID)
+    if not d: return jsonify(error="no active project"), 400
+    prof = d["profile"]; fixes = prof.get("fixes", {"avm_discount": 0.9, "rent_realization": 0.95})
+    if isinstance(fixes, dict) and "fixes" in fixes: fixes = fixes["fixes"]
+    src = d.get("source")
+    try:
+        if src:
+            raw = pd.read_parquet(src) if src.endswith(".parquet") else pd.read_csv(src)
+            raw = projects.apply_map(raw, d.get("column_map"))
+        else:
+            raw = pd.read_parquet(os.path.join(DATA, "universe_raw.parquet"))
+        scored, _ = re_core.run(raw, REFS, fixes, ptype=d["type"], profile=prof)
+    except Exception as e:
+        return jsonify(error="re-score failed: " + str(e)[:160]), 500
+    if "market_rent" not in scored.columns and "max_rent" in scored.columns:
+        scored["market_rent"] = (pd.to_numeric(scored["max_rent"], errors="coerce") * fixes.get("rent_realization", 1)).round(0)
+    SCORED = scored[[c for c in DISPLAY_COLS if c in scored.columns]].copy()
+    try: SCORED.to_parquet(os.path.join(DATA, "scored.parquet"), index=False)
+    except Exception: pass
+    return jsonify(rows=len(SCORED), tiers=SCORED["tier"].value_counts().to_dict(),
+                   scored_with=[m["key"] for m in prof["metrics"] if m.get("on", True) and m.get("input") in scored.columns])
 
 # ---------------- formatted report export ----------------
 from flask import Response

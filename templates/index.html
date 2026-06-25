@@ -204,6 +204,20 @@ select option{background:#fff;color:#0b1320}
 .dmsg{background:#f7f9fc;border:1px solid var(--line2);border-radius:10px;padding:9px 11px;margin-bottom:8px;font-size:13px}
 .dmsg .who{font-weight:700;color:var(--ink);font-size:12px}.dmsg .tm{color:var(--faint);font-size:11px;font-weight:400;margin-left:6px}
 .dmsg .mention{color:var(--emer-d);font-weight:600}
+/* risk model panel */
+.riskwrap{border:1px solid var(--line);border-radius:13px;padding:14px;background:#fcfdfe}
+.riskhead{display:flex;align-items:center;gap:13px;margin-bottom:10px}
+.rgrade{width:46px;height:46px;border-radius:12px;color:#fff;font-weight:800;font-size:22px;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow)}
+.rcounts{display:flex;flex-wrap:wrap;gap:9px;margin-top:3px}.rcount{font-size:11px;font-weight:700}
+.rdecision{background:#fff7ed;border:1px solid #f3d9b5;color:#8a5a18;border-radius:9px;padding:9px 11px;font-size:12.5px;font-weight:600;margin-bottom:12px}
+.rflags{display:flex;flex-direction:column;gap:9px}
+.rflag{display:flex;gap:10px;align-items:flex-start;padding:10px 11px;border:1px solid var(--line2);border-radius:10px;background:#fff}
+.rsev{flex:0 0 auto;color:#fff;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;padding:3px 8px;border-radius:6px;margin-top:1px;min-width:58px;text-align:center}
+.rbody{flex:1;min-width:0}
+.rt{font-weight:700;font-size:13px;color:var(--ink)}
+.rd{font-size:12px;color:var(--ink2);margin:3px 0;line-height:1.5}
+.rm{font-size:12px;color:var(--emer-d);font-weight:600}
+.rsrc{font-size:10.5px;color:var(--faint);margin-top:4px;text-transform:uppercase;letter-spacing:.03em}
 .dbar{display:flex;gap:7px;margin-top:8px}.dbar input{flex:1;height:38px;border:1px solid var(--line);border-radius:9px;padding:0 11px;font-size:13px}
 .fbk{display:flex;gap:6px;margin-top:8px;align-items:center}
 .fbk button{background:#fff;border:1px solid var(--line);border-radius:8px;width:30px;height:28px;cursor:pointer;font-size:14px}
@@ -236,7 +250,8 @@ select option{background:#fff;color:#0b1320}
  <!-- MAIN -->
  <div class="main">
    <div class="top">
-     <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><input id="gsearch" placeholder="Search APN or address…" autocomplete="off"><div class="res" id="sres"></div></div>
+     <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><input id="gsearch" placeholder="Search APN or address…" autocomplete="off" onkeydown="if(event.key==='Enter')this.dispatchEvent(new Event('input'))"><div class="res" id="sres"></div></div>
+     <button class="btn emer" onclick="document.getElementById('gsearch').dispatchEvent(new Event('input'))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg> Search</button>
      <div class="grow"></div>
      <button class="btn ghost" onclick="loadAll()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"/></svg> Refresh</button>
      <button class="btn emer" onclick="toggleChat()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.7L18.5 9l-4.7 1.8L12 15l-1.8-4.2L5.5 9l4.7-1.3z"/></svg> Ask ATLAS</button>
@@ -284,16 +299,20 @@ select option{background:#fff;color:#0b1320}
      </section>
      <!-- TARGETS -->
      <section id="targets" class="view">
-       <h1 class="h1">Targets</h1><p class="sub">Filter and rank the scored universe. Click a row for the full property profile.</p>
+       <h1 class="h1">Targets</h1><p class="sub">Filter and rank the scored universe. Results update as you type. Click a row for the full property profile, map &amp; underwrite.</p>
        <div class="filters">
          <div class="fld"><label>Tier</label><select id="t_tier"><option>Tier 1 - Strong</option><option>Tier 2 - Moderate</option><option>Tier 3 - Watch</option></select></div>
-         <div class="fld"><label>State</label><input id="t_state" placeholder="all"></div>
-         <div class="fld"><label>Min yield</label><input id="t_yield" placeholder="0.10"></div>
-         <div class="fld"><label>Max AVM</label><input id="t_price" placeholder="350000"></div>
+         <div class="fld"><label>State</label><input id="t_state" placeholder="all states"></div>
+         <div class="fld"><label>Min gross yield</label><input id="t_yield" placeholder="e.g. 0.10"></div>
+         <div class="fld"><label>Max AVM ($)</label><input id="t_price" placeholder="e.g. 350000"></div>
+         <div class="fld"><label>Sort by</label><select id="t_sort"><option value="total_score">Score</option><option value="gross_yield">Yield</option><option value="avm">Price (low→high)</option><option value="tenure">Tenure</option></select></div>
          <div class="fld"><label>&nbsp;</label><button class="btn emer" onclick="loadTargets()">Search</button></div>
+         <div class="fld"><label>&nbsp;</label><button class="btn ghost" onclick="resetTargets()">Reset</button></div>
          <div class="fld"><label>&nbsp;</label><button class="btn ghost" onclick="exportTargets()">⤓ Excel</button></div>
        </div>
-       <div class="card"><div style="max-height:62vh;overflow:auto"><table id="ttable"><thead></thead><tbody></tbody></table></div></div>
+       <div id="tsummary" class="grid k4" style="margin-bottom:14px"></div>
+       <div id="tcard" class="card"><div style="max-height:56vh;overflow:auto"><table id="ttable"><thead></thead><tbody></tbody></table></div></div>
+       <div id="tempty" style="display:none"></div>
      </section>
      <!-- UNDERWRITING -->
      <section id="uw" class="view">
@@ -507,16 +526,34 @@ async function loadMap(){
 }
 
 // ---------------- TARGETS ----------------
-let TROWS=[],TSORT={k:'total_score',d:-1};
+let TROWS=[],TSORT={k:'total_score',d:-1},TTOTAL=0,_tdeb;
 async function loadTargets(){
  const b={tier:$('#t_tier').value,limit:300};
  if($('#t_state').value)b.state=$('#t_state').value;
  if($('#t_yield').value)b.min_yield=+$('#t_yield').value;
  if($('#t_price').value)b.max_price=+$('#t_price').value;
- const r=await post('/api/search_targets',b);TROWS=r.rows;renderT();
+ $('#tempty').style.display='none';$('#tcard').style.display='block';
+ $('#ttable tbody').innerHTML='<tr><td colspan="9" style="text-align:center;padding:34px;color:#6b7689"><span class="spin"></span> searching…</td></tr>';
+ const r=await post('/api/search_targets',b);TROWS=r.rows||[];TTOTAL=r.count||0;
+ const srt=$('#t_sort').value;TSORT={k:srt,d:srt==='avm'?1:-1};
+ renderT();
 }
+function targetsAuto(){clearTimeout(_tdeb);_tdeb=setTimeout(loadTargets,350);}
+function resetTargets(){$('#t_state').value='';$('#t_yield').value='';$('#t_price').value='';$('#t_tier').value='Tier 1 - Strong';$('#t_sort').value='total_score';loadTargets();}
 const TCOLS=[['address','Address','l'],['city','City','l'],['state','ST','l'],['avm','AVM'],['market_rent','Rent'],['gross_yield','Yield'],['tenure','Tenure'],['corp','Owner'],['total_score','Score']];
 function renderT(){
+ if(!TROWS.length){
+   $('#tcard').style.display='none';$('#tsummary').innerHTML='';$('#tempty').style.display='block';
+   const ff=[];if($('#t_state').value)ff.push('state '+$('#t_state').value.toUpperCase());if($('#t_yield').value)ff.push('yield ≥ '+pct(+$('#t_yield').value));if($('#t_price').value)ff.push('AVM ≤ $'+f(+$('#t_price').value));
+   $('#tempty').innerHTML=`<div class="card pad" style="text-align:center;padding:48px 20px"><div style="font-size:40px">🔍</div>
+     <h3 style="margin:12px 0 4px">No targets match these filters</h3>
+     <p class="muted" style="max-width:440px;margin:0 auto 16px">${ff.length?'<b>Filters:</b> '+ff.join(' · ')+'.<br>':''}Heads-up: <b>Max AVM is in dollars</b> — most homes are $200k–$400k, so a value like 25000 ($25k) excludes everything. Try 350000.</p>
+     <button class="btn emer" onclick="resetTargets()">Reset filters</button></div>`;
+   return;}
+ $('#tempty').style.display='none';$('#tcard').style.display='block';
+ const avg=k=>TROWS.reduce((s,x)=>s+(+x[k]||0),0)/TROWS.length;
+ const corp=TROWS.filter(x=>x.corp==='Y').length/TROWS.length;
+ $('#tsummary').innerHTML=kpi('Matches',IC.home,f(TTOTAL),'showing top '+TROWS.length)+kpi('Avg yield',IC.pct,pct(avg('gross_yield')),'gross')+kpi('Avg AVM',IC.port,'$'+f(avg('avm')),'')+kpi('Corporate',IC.hash,pct(corp,0),'skip-trace pool');
  $('#ttable thead').innerHTML='<tr>'+TCOLS.map(c=>`<th class="${c[2]||''}" onclick="sortT('${c[0]}')">${c[1]}${TSORT.k===c[0]?(TSORT.d<0?' ▾':' ▴'):''}</th>`).join('')+'</tr>';
  const rows=[...TROWS].sort((a,b)=>{const x=a[TSORT.k],y=b[TSORT.k];return (x>y?1:x<y?-1:0)*TSORT.d});
  $('#ttable tbody').innerHTML=rows.map(r=>`<tr onclick="openDrawer('${r.apn}')">
@@ -528,6 +565,9 @@ function renderT(){
 function sortT(k){TSORT.d=TSORT.k===k?-TSORT.d:-1;TSORT.k=k;renderT()}
 function dl(u){window.open(u,'_blank')}
 function exportTargets(){let u='/api/report/targets.xlsx?tier='+encodeURIComponent($('#t_tier').value)+'&limit=200';if($('#t_state').value)u+='&state='+$('#t_state').value;dl(u)}
+$('#t_tier').addEventListener('change',loadTargets);
+$('#t_sort').addEventListener('change',()=>{const s=$('#t_sort').value;TSORT={k:s,d:s==='avm'?1:-1};if(TROWS.length)renderT();else loadTargets();});
+['t_state','t_yield','t_price'].forEach(id=>$('#'+id).addEventListener('input',targetsAuto));
 
 // ---------------- DRAWER ----------------
 async function openDrawer(apn){
@@ -550,7 +590,9 @@ async function openDrawer(apn){
     <div class="metric"><div class="l">CoC</div><div class="v">${pct(a.coc,2)}</div></div>
     <div class="metric"><div class="l">DSCR</div><div class="v">${f(a.dscr,2)}</div></div>
    </div>
-   <div id="dmap"></div>
+   <h3 style="font-size:14px;margin:16px 0 8px">Risk model <span class="muted" style="font-weight:400">— every flag, major to minor</span></h3>
+   <div id="riskpanel" class="riskwrap"><div class="muted" style="font-size:12px"><span class="spin"></span> assessing risk across 15+ dimensions…</div></div>
+   <div id="dmap" style="margin-top:14px"></div>
    ${r.lat?`<div style="display:flex;gap:8px;margin-top:10px">
      <a class="btn ghost" style="flex:1;justify-content:center" target="_blank" href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${r.lat},${r.lon}">Street View</a>
      <a class="btn ghost" style="flex:1;justify-content:center" target="_blank" href="https://www.google.com/maps/search/?api=1&query=${r.lat},${r.lon}">Google Maps</a>
@@ -563,12 +605,29 @@ async function openDrawer(apn){
    </div>
   </div>`;
  DKEY='property:'+r.apn;
- $('#scrim').classList.add('on');$('#drawer').classList.add('on');loadThread();
+ $('#scrim').classList.add('on');$('#drawer').classList.add('on');loadThread();loadRisk(r.apn);
  setTimeout(()=>{if(r.lat){if(DMAP)DMAP.remove();DMAP=L.map('dmap',{zoomControl:false,attributionControl:false}).setView([r.lat,r.lon],14);
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(DMAP);
   L.circleMarker([r.lat,r.lon],{radius:9,color:'#fff',weight:2,fillColor:'#0e9d6e',fillOpacity:1}).addTo(DMAP);}},120);
 }
 function closeDrawer(){$('#scrim').classList.remove('on');$('#drawer').classList.remove('on')}
+const RSEVC={Critical:'#dc4a3d',High:'#e2783a',Medium:'#e0a23a',Low:'#3f7fd6',Minor:'#8a93a3',Info:'#9aa3b2'};
+async function loadRisk(apn){let d;try{d=await post('/api/risk',{apn});}catch(e){$('#riskpanel').innerHTML='<div class="muted" style="font-size:12px">Risk model unavailable.</div>';return;}
+ if(!d||d.error){$('#riskpanel').innerHTML='<div class="muted" style="font-size:12px">No risk profile.</div>';return;}
+ const gc={A:'#0e9d6e',B:'#5bbf8a',C:'#e0a23a',D:'#e2783a',F:'#dc4a3d'}[d.grade]||'#888';
+ const chips=Object.entries(d.counts||{}).filter(([k,v])=>v>0&&k!=='Info').map(([k,v])=>`<span class="rcount" style="color:${RSEVC[k]}">${v} ${k}</span>`).join('');
+ $('#riskpanel').innerHTML=`
+  <div class="riskhead"><div class="rgrade" style="background:${gc}">${d.grade}</div>
+    <div style="flex:1"><div style="font-weight:700;font-size:14px">Risk ${d.score}/100 · ${d.band}</div>
+    <div class="rcounts">${chips}</div></div></div>
+  <div class="rdecision">📌 ${esc(d.decision)}</div>
+  <div class="rflags">${(d.risks||[]).map(r=>`<div class="rflag">
+     <span class="rsev" style="background:${RSEVC[r.severity]||'#888'}">${r.severity}</span>
+     <div class="rbody"><div class="rt">${esc(r.title)}</div><div class="rd">${esc(r.detail)}</div>
+       <div class="rm">✓ ${esc(r.mitigation)}</div>
+       <div class="rsrc">${esc(r.category)} · ${(r.source==='needs paid report'||r.source==='needs check')?'<b style="color:#c47b27">⚠ '+esc(r.source)+'</b>':esc(r.source)}</div>
+     </div></div>`).join('')}</div>`;
+}
 async function openSite(lat,lon){
  $('#drawer').innerHTML='<div class="db" style="padding:60px 22px;text-align:center;color:#6b7689"><span class="spin"></span><br><br>Analyzing site — facilities, flood zone & best use…</div>';
  $('#scrim').classList.add('on');$('#drawer').classList.add('on');
@@ -737,9 +796,9 @@ async function createProject(){const name=$('#np_name').value.trim()||'Untitled'
  const r=await post('/api/project/create',body);await loadProjects();$('#projSel').value=r.id;await activateProj(r.id);closeSetup();
  if(r.scored_rows&&typeof r.scored_rows==='string')alert('Project created. Scoring note: '+r.scored_rows);
  document.querySelector('#nav a[data-v=studio]').click();}
-let STUDIO=null, NEWMETRICS=[];
+let STUDIO=null, NEWMETRICS=[], NEWGATE=[];
 async function loadStudio(){let a;try{a=await get('/api/active');}catch(e){return}
- STUDIO=a; NEWMETRICS=[];
+ STUDIO=a; NEWMETRICS=[]; NEWGATE=[];
  $('#studioSub').textContent=`${a.name} · ${a.type} — ${a.profile.label}. Every field is editable; add metrics below, then Save model (re-score to apply to the universe).`;
  $('#bbType').textContent=a.type;
  $('#buybox').innerHTML=a.profile.gate.map(g=>{
@@ -747,7 +806,14 @@ async function loadStudio(){let a;try{a=await get('/api/active');}catch(e){retur
    if(g.op==='ge')return `<div class="ekv"><span>${g.field} (≥)</span><input class="ein gin" data-g="${g.field}" data-k="value" value="${g.value}"></div>`;
    if(g.op==='eq')return `<div class="ekv"><span>${g.field}</span><input class="ein wide gin" data-g="${g.field}" data-k="value" value="${esc(String(g.value))}"></div>`;
    if(g.op==='in')return `<div class="ekv"><span>${g.field}</span><b>${g.value.join(', ')}</b></div>`;
-   return `<div class="ekv"><span>${g.field}</span><b>required</b></div>`;}).join('');
+   return `<div class="ekv"><span>${g.field}</span><b>required</b></div>`;}).join('')+
+   `<div id="newgate"></div><button class="btn ghost" style="margin-top:10px" onclick="document.getElementById('gatebox').classList.toggle('on')">+ Add gate condition</button>
+    <div class="addbox" id="gatebox">
+      <div class="r2"><div><label>Field (column)</label><input id="ng_field" placeholder="e.g. avm, sqft, yearbuilt"></div><div><label>Operator</label><select id="ng_op"><option value="between">between (lo–hi)</option><option value="ge">≥ value</option><option value="le">≤ value</option><option value="eq">= value</option></select></div></div>
+      <div class="r2"><div><label>Low / value</label><input id="ng_lo" placeholder="lo or value"></div><div><label>High (for between)</label><input id="ng_hi" placeholder="hi"></div></div>
+      <button class="btn emer" style="width:100%;justify-content:center" onclick="addGate()">Add condition</button>
+      <div class="note" style="font-size:11px;margin-top:6px">Adds a hard filter to the buy box — rows failing it become "Not a Match" on re-score.</div>
+    </div>`;
  const t=a.profile.tiers,rk=a.profile.risk;
  $('#tiers').innerHTML=`<div class="ekv"><span>Tier 1 (score ≥)</span><input class="ein" id="t_tier1" value="${t.tier1}"></div>
    <div class="ekv"><span>Tier 2 (score ≥)</span><input class="ein" id="t_tier2" value="${t.tier2}"></div>
@@ -755,7 +821,23 @@ async function loadStudio(){let a;try{a=await get('/api/active');}catch(e){retur
    <div class="ekv"><span>Risk-neutral baseline (0–100)</span><input class="ein" id="t_rbase" value="${rk.baseline}"></div>`;
  renderMetrics();
  const as=(a.assumptions&&Object.keys(a.assumptions).length)?a.assumptions:(a.profile.assumptions||{});
- $('#assump').innerHTML=Object.entries(as).map(([k,v])=>`<div class="ekv"><span>${k.replace(/_/g,' ')}</span><input class="ein ain" data-a="${k}" value="${v}"></div>`).join('')||'<div class="muted">Per-type defaults applied.</div>';}
+ $('#assump').innerHTML=(Object.entries(as).map(([k,v])=>`<div class="ekv"><span>${k.replace(/_/g,' ')}</span><input class="ein ain" data-a="${k}" value="${v}"></div>`).join('')||'<div class="muted" style="padding:6px 0">Per-type defaults applied.</div>')+
+   `<button class="btn ghost" style="margin-top:10px" onclick="document.getElementById('asbox').classList.toggle('on')">+ Add assumption</button>
+    <div class="addbox" id="asbox">
+      <div class="r2"><div><label>Name</label><input id="na_key" placeholder="e.g. insurance_rate"></div><div><label>Value</label><input id="na_val" placeholder="e.g. 0.012"></div></div>
+      <button class="btn emer" style="width:100%;justify-content:center" onclick="addAssump()">Add assumption</button>
+      <div class="note" style="font-size:11px;margin-top:6px">Available to underwriting &amp; any metric that references it.</div>
+    </div>`;}
+function addGate(){const fld=$('#ng_field').value.trim();if(!fld){alert('Field is required.');return}
+ const op=$('#ng_op').value,lo=$('#ng_lo').value,hi=$('#ng_hi').value;
+ const row=op==='between'?`<div class="ekv"><span>${fld} <span class="pill" style="background:#e7f7f0;color:#0a7a55">new</span></span><span><input class="ein gin" data-g="${fld}" data-k="lo" value="${lo}"> – <input class="ein gin" data-g="${fld}" data-k="hi" value="${hi}"></span></div>`
+   :`<div class="ekv"><span>${fld} (${op}) <span class="pill" style="background:#e7f7f0;color:#0a7a55">new</span></span><input class="ein gin" data-g="${fld}" data-k="value" value="${lo}"></div>`;
+ $('#newgate').insertAdjacentHTML('beforeend',row);
+ NEWGATE.push(op==='between'?{field:fld,op,lo,hi}:{field:fld,op,value:lo});
+ $('#ng_field').value='';$('#ng_lo').value='';$('#ng_hi').value='';$('#gatebox').classList.remove('on');}
+function addAssump(){const k=$('#na_key').value.trim().replace(/\s+/g,'_'),v=$('#na_val').value.trim();if(!k){alert('Name is required.');return}
+ $('#assump').querySelector('button').insertAdjacentHTML('beforebegin',`<div class="ekv"><span>${k.replace(/_/g,' ')} <span class="pill" style="background:#e7f7f0;color:#0a7a55">new</span></span><input class="ein ain" data-a="${k}" value="${v}"></div>`);
+ $('#na_key').value='';$('#na_val').value='';$('#asbox').classList.remove('on');}
 function renderMetrics(){const ms=STUDIO.profile.metrics.concat(NEWMETRICS);
  const tot=ms.filter(m=>m.on!==false).reduce((s,m)=>s+(+m.weight||0),0);
  $('#metrics').innerHTML=ms.map(m=>`<div class="mrow"><input type="checkbox" class="mtoggle" data-k="${m.key}" ${m.on!==false?'checked':''}><div>${esc(m.label)}<span class="pill">${m.pillar}</span>${m._new?' <span class="pill" style="background:#e7f7f0;color:#0a7a55">new</span>':''}</div><input type="number" step="0.5" class="mweight" data-k="${m.key}" value="${m.weight}"><div class="nk">${m.norm.kind}</div></div>`).join('')+
@@ -783,9 +865,14 @@ async function saveProfile(){
  const tiers={tier1:+$('#t_tier1').value,tier2:+$('#t_tier2').value};
  const risk={sensitivity:+$('#t_rsens').value,baseline:+$('#t_rbase').value};
  const assumptions={};document.querySelectorAll('.ain').forEach(i=>{assumptions[i.dataset.a]=i.value;});
- await post('/api/project/profile',{patch:{metrics,gate:Object.values(gate),tiers,risk,assumptions}});
- alert('Model saved — buy box, weights, tiers, risk and assumptions updated. Run refresh.py to re-score the universe.');
- loadStudio();}
+ const exist=new Set(STUDIO.profile.gate.map(g=>g.field));
+ const gateUpd=Object.values(gate).filter(g=>exist.has(g.field));  // edits to existing conditions only
+ await post('/api/project/profile',{patch:{metrics,gate:gateUpd,add_gates:NEWGATE,tiers,risk,assumptions}});
+ $('#studioSub').textContent='Re-scoring the universe with your changes — this takes a few seconds…';
+ let rs;try{rs=await post('/api/rescore',{});}catch(e){rs={error:'re-score failed'};}
+ if(rs.error){alert('Saved, but re-score failed: '+rs.error);}
+ else{const t=rs.tiers||{};alert('Model saved & universe re-scored.\n\nNew tiers — Tier 1: '+(t['Tier 1 - Strong']||0).toLocaleString()+' · Tier 2: '+(t['Tier 2 - Moderate']||0).toLocaleString()+' · Tier 3: '+(t['Tier 3 - Watch']||0).toLocaleString()+'\n\nTargets, Dashboard and Map now reflect your model.');}
+ $('#ttable tbody').innerHTML='';TROWS=[];loadStudio();loadDash();}
 
 // ---------------- INIT ----------------
 async function loadAll(){let h;try{h=await get('/health');}catch(e){h={rows:(typeof EMBED!=='undefined'?EMBED.rows:0)}}$('#rowcount').textContent=Number(h.rows).toLocaleString();loadDash();}

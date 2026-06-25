@@ -76,6 +76,12 @@ def update_profile(pid, patch):
                 prof["metrics"].append(upd)
     if "add_metric" in patch:
         prof["metrics"].append(patch["add_metric"])
+    if "add_gates" in patch:
+        for g in patch["add_gates"]:
+            op = g.get("op", "between"); cond = {"field": g["field"], "op": op}
+            if op == "between": cond["lo"] = _num(g.get("lo")); cond["hi"] = _num(g.get("hi"))
+            elif op in ("ge", "le", "eq"): cond["value"] = _num(g.get("value"))
+            prof["gate"].append(cond)
     if "gate" in patch:
         gby = {g["field"]: g for g in prof["gate"]}
         for upd in patch["gate"]:

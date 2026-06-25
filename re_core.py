@@ -56,7 +56,9 @@ def score(prepared, profile):
     """prepared = df with all metric input columns + 'match' + 'risk_sc'. Returns scored df."""
     d = prepared
     match = d["match"].to_numpy().astype(bool)
-    metrics = [m for m in profile["metrics"] if m.get("weight", 0) and m.get("on", True)]
+    # only score metrics that are on, weighted, AND whose source column exists (added/removed-safe)
+    metrics = [m for m in profile["metrics"]
+               if m.get("weight", 0) and m.get("on", True) and m.get("input") in d.columns]
     Wtot = sum(m["weight"] for m in metrics) or 1
     acc = np.zeros(len(d))
     for m in metrics:
