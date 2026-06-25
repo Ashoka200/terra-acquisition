@@ -1,0 +1,23 @@
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# runtime-writable data (lives on the Railway volume, NOT in git)
+# the read-only reference data ships in seed/ and is restored on boot
+data/
+uploads/
+*.jsonl
+users.json
+collab.json
+feedback.json
+refresh.json
+
+# secrets
+.env
+
+# local build/scratch artifacts
+_build_tmp/
+_dump/
+_test_*
