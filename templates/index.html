@@ -555,8 +555,32 @@ async function openSite(lat,lon){
      <h3 style="font-size:14px;margin:2px 0 12px">Highest &amp; Best Use <span class="muted" style="font-weight:400">— market-signal screen</span></h3>${hbu}
      <h3 style="font-size:14px;margin:20px 0 8px">Distance to facilities</h3>${fac}
      <h3 style="font-size:14px;margin:20px 0 8px">Risk flags</h3>${risks}
+     <h3 style="font-size:14px;margin:20px 0 8px">Build-out estimator <span class="muted" style="font-weight:400">— keys / units</span></h3>
+     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+       <div class="fld"><label>Parcel area (sq ft)</label><input id="ms_area" value="40000"></div>
+       <div class="fld"><label>Use</label><select id="ms_use"><option value="hotel">Hotel</option><option value="extended_stay">Extended-stay</option><option value="residential">Residential</option><option value="office">Office</option></select></div>
+       <div class="fld"><label>Footprint shape</label><select id="ms_shape"><option value="rectangular">rectangular</option><option value="L-shaped">L-shaped</option><option value="diagonal">diagonal / irregular</option></select></div>
+       <div class="fld"><label>FAR</label><input id="ms_far" value="2.5"></div>
+       <div class="fld"><label>Height (ft)</label><input id="ms_h" value="65"></div>
+       <div class="fld"><label>Lot coverage</label><input id="ms_cov" value="0.45"></div>
+     </div>
+     <button class="btn emer" style="width:100%;justify-content:center;margin-top:10px" onclick="runMassing()">Estimate keys / units</button>
+     <div id="ms_out" class="out" style="margin-top:10px;display:none"></div>
      <div class="note" style="margin-top:14px;font-size:11.5px">${esc(r.notes||'')}</div>
-   </div>`;}
+   </div>`;
+ const u=(r.hbu&&r.hbu[0]&&r.hbu[0].use||'').toLowerCase();
+ const sel=$('#ms_use'); if(sel){if(u.includes('hotel'))sel.value='hotel';else if(u.includes('residential')||u.includes('multifamily'))sel.value='residential';}}
+async function runMassing(){
+ const q='/api/massing?area='+(+$('#ms_area').value)+'&use='+$('#ms_use').value+'&shape='+encodeURIComponent($('#ms_shape').value)+'&far='+(+$('#ms_far').value)+'&height='+(+$('#ms_h').value)+'&coverage='+(+$('#ms_cov').value);
+ let m;try{m=await get(q);}catch(e){return}
+ const o=$('#ms_out'); o.style.display='block';
+ if(m.error){o.textContent=m.error;return}
+ const u=m.unit_label,wo=m.without_ground_retail,wr=m.with_ground_retail;
+ o.innerHTML=`<b>${m.floors} floors</b> · footprint ${m.footprint_sf.toLocaleString()} sf · shape factor ${m.shape_factor}<br>
+   ▸ <b>${wo[u]} ${u}</b> without ground retail <span class="muted">(${wo.per_floor}/floor)</span><br>
+   ▸ <b>${wr[u]} ${u}</b> + <b>${wr.ground_floor_retail_sf.toLocaleString()} sf</b> ground-floor retail<br>
+   Parking required: <b>${m.parking_required}</b> · binding constraint: <b>${m.binding_constraint}</b><br>
+   <span class="muted" style="font-size:11px;display:block;margin-top:6px">${esc(m.adjacent_lease_note)}</span>`;}
 let DKEY=null;
 async function loadThread(){if(!DKEY)return;let msgs=[];try{msgs=await get('/api/thread?key='+encodeURIComponent(DKEY));}catch(e){}
  const el=$('#thread');if(!el)return;

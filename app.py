@@ -307,6 +307,17 @@ def api_site():
         return jsonify(error="lat & lon required"), 400
     return jsonify(site_intel.analyze(lat, lon))
 
+@app.route("/api/massing")
+def api_massing():
+    a = request.args
+    try:
+        return jsonify(site_intel.massing(
+            area_sf=float(a["area"]), use=a.get("use", "hotel"), shape=a.get("shape", "rectangular"),
+            far=float(a.get("far", 2.0)), height_ft=float(a.get("height", 55)),
+            lot_coverage=float(a.get("coverage", 0.45)), parking_ratio=float(a.get("parking", 1.0))))
+    except Exception as e:
+        return jsonify(error="area required (sq ft); " + str(e)[:80]), 400
+
 @app.route("/api/listings.xlsx")
 def listings_download():
     zc = request.args.get("zip", "").strip()
