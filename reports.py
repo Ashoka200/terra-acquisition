@@ -155,6 +155,229 @@ def _xl_formats(wb):
         "kpiV": wb.add_format({"bold": True, "font_size": 14, "font_color": "#0a7a55", "bg_color": "#e7f7f0"}),
     }
 
+def model_xlsx(prop, profile, assumptions, loc, trace=None, uw_discount=0.9):
+    """The WORKING model as a live-formula workbook: change any Assumption cell and the
+    Buy Box / Scoring / Underwriting sheets all recompute. Mirrors the engine exactly.
+    `trace` (from calc_trace.trace) supplies cached results so values are correct even
+    before a recalc."""
+    # cached values from the trace, keyed for quick lookup
+    C_score = {}; C_uw = {}; C_sum = {}
+    if trace:
+        C_sum = trace.get("score", {})
+        for row in trace["score"]["rows"]:
+            C_score[row["metric"]] = row
+        for row in trace["underwrite"]["rows"]:
+            C_uw[row["label"]] = row["value"]
+    def cv(d, k, default=0):  # cached value or default (lets Excel recalc fill it)
+        return d.get(k, default) if d else default
+    buf = io.BytesIO(); wb = xlsxwriter.Workbook(buf, {"in_memory": True}); F = _xl_formats(wb)
+    wb.set_calc_mode("auto")
+    F["fx"] = wb.add_format({"font_size": 9, "font_color": "#5a6a55", "italic": True, "border": 1,
+                             "border_color": "#e4e8f0", "font_name": "Consolas"})
+    F["inp"] = wb.add_format({"font_size": 10, "border": 1, "border_color": "#c9d6cf", "bg_color": "#f0fff8",
+                              "align": "right"})
+    F["lbl"] = wb.add_format({"font_size": 10, "border": 1, "border_color": "#e4e8f0", "bold": True})
+    F["sec"] = wb.add_format({"bold": True, "font_size": 12, "font_color": "white", "bg_color": "#0e9d6e"})
+    F["passC"] = wb.add_format({"font_size": 10, "border": 1, "border_color": "#e4e8f0", "align": "center",
+                                "bold": True, "font_color": "#0a7a55"})
+    g = {c["field"]: c for c in profile["gate"]}
+    mx = {m["key"]: m for m in profile["metrics"]}
+    p = lambda k: mx[k]["norm"] if k in mx else {}
+    sc, bb = {}, {}
+
+    # ---------------- ASSUMPTIONS (named input cells) ----------------
+    A = wb.add_worksheet("Assumptions"); A.hide_gridlines(2)
+    A.set_column(0, 0, 30); A.set_column(1, 1, 16); A.set_column(2, 2, 4); A.set_column(3, 3, 30); A.set_column(4, 4, 16)
+    A.merge_range(0, 0, 0, 4, "Terra · Working Model — Assumptions", F["title"])
+    A.merge_range(1, 0, 1, 4, "Green cells are inputs. Edit them and every sheet recomputes (this IS the model).", F["sub"])
+    def put(ws, r, c, name, label, value, fmt="num2", defname=None):
+        ws.write(r, c, label, F["lbl"]); ws.write(r, c+1, value, F[fmt])
+        if defname:
+            cell = "'%s'!$%s$%d" % (ws.name, chr(65+c+1), r+1)
+            try: wb.define_name(defname, "=" + cell)
+            except Exception: pass
+    # buy-box bands + weights (left block)
+    yb = g.get("yearbuilt", {}); sq = g.get("sqft", {}); av = g.get("avm", {})
+    yld = p("yield"); pr = p("price"); ten = p("ten"); sf = p("sqftfit"); yf = p("yearfit")
+    rows_left = [
+        ("bb_year_low", "Year built — low", yb.get("lo"), "num2"),
+        ("bb_year_high", "Year built — high", yb.get("hi"), "num2"),
+        ("bb_sqft_low", "Sqft — low", sq.get("lo"), "num2"),
+        ("bb_sqft_high", "Sqft — high", sq.get("hi"), "num2"),
+        ("bb_price_low", "AVM band — low", av.get("lo"), "money"),
+        ("bb_price_high", "AVM band — high", av.get("hi"), "money"),
+        ("bb_yield_floor", "Yield floor", yld.get("lo"), "pct2"),
+        ("bb_yield_target", "Yield target", yld.get("hi"), "pct2"),
+        ("bb_ten_sat", "Tenure saturation (yrs)", ten.get("cap"), "num2"),
+        ("bb_sqft_center", "Sqft fit — center", sf.get("center"), "num2"),
+        ("bb_sqft_half", "Sqft fit — half-width", sf.get("half"), "num2"),
+        ("risk_baseline", "Risk baseline", profile["risk"]["baseline"], "num2"),
+        ("risk_sens", "Risk sensitivity", profile["risk"]["sensitivity"], "num2"),
+        ("tier1_cut", "Tier 1 cutoff", profile["tiers"]["tier1"], "num2"),
+        ("tier2_cut", "Tier 2 cutoff", profile["tiers"]["tier2"], "num2"),
+    ]
+    for i, (nm, lb, v, fmt) in enumerate(rows_left):
+        put(A, 3 + i, 0, nm, lb, v, fmt, nm)
+    # weights (per metric, named w_<key>)
+    A.write(3, 3, "Metric weights", F["sec"])
+    for i, m in enumerate(profile["metrics"]):
+        put(A, 4 + i, 3, "w_" + m["key"], m["label"], m.get("weight", 0), "num2", "w_" + m["key"])
+    # underwriting assumptions (continue left block)
+    base = 3 + len(rows_left) + 1
+    A.write(base - 1, 0, "Underwriting assumptions", F["sec"])
+    ua = [("a_closing", "Closing %", assumptions["closing"], "pct2"),
+          ("a_rehab", "Rehab $/home", assumptions["rehab"], "money"),
+          ("a_vacancy", "Vacancy %", assumptions["vacancy"], "pct2"),
+          ("a_pm", "Property mgmt %", assumptions["pm"], "pct2"),
+          ("a_maint", "Maintenance %", assumptions["maint"], "pct2"),
+          ("a_tax", "Property tax %", assumptions["tax"], "pct2"),
+          ("a_ins", "Insurance $", assumptions["ins"], "money"),
+          ("a_hoa", "HOA $", assumptions["hoa"], "money"),
+          ("a_other", "Other $", assumptions["other"], "money"),
+          ("a_ltv", "LTV %", assumptions["ltv"], "pct2"),
+          ("a_rate", "Interest rate %", assumptions["rate"], "pct2"),
+          ("a_amort", "Amortization (yrs)", assumptions["amort"], "num2"),
+          ("a_points", "Loan points %", assumptions["points"], "pct2"),
+          ("uw_disc", "Offer as % of AVM", uw_discount, "pct2")]
+    for i, (nm, lb, v, fmt) in enumerate(ua):
+        put(A, base + i, 0, nm, lb, v, fmt, nm)
+    # property facts (named p_*) on the right
+    A.write(base - 1, 3, "Subject property", F["sec"])
+    pf = [("p_avm", "AVM", _num(prop.get("avm")), "money"),
+          ("p_rent", "Market rent (monthly)", _num(prop.get("market_rent")), "money"),
+          ("p_yield", "Gross yield", _num(prop.get("gross_yield")), "pct2"),
+          ("p_sqft", "Sqft", _num(prop.get("sqft")), "num2"),
+          ("p_year", "Year built", _num(prop.get("yearbuilt")), "num2"),
+          ("p_tenure", "Tenure (yrs)", _num(prop.get("tenure")), "num2"),
+          ("p_corp", "Corporate owner", "Y" if str(prop.get("corp")) == "Y" else "N", "cell"),
+          ("p_proven", "Proven-market index", loc.get("proven_v", 0), "num2"),
+          ("p_density", "Cluster-density index", loc.get("density_v", 0), "num2"),
+          ("p_target", "Metro-target index", loc.get("target_v", 0), "num2"),
+          ("p_momentum", "Rent-momentum index", loc.get("momentum_v", 0), "num2"),
+          ("p_risk", "Market-risk index", loc.get("risk", 0), "num2")]
+    for i, (nm, lb, v, fmt) in enumerate(pf):
+        put(A, base + i, 3, nm, lb, v, fmt, nm)
+
+    # ---------------- 1. BUY BOX (GATE) ----------------
+    G = wb.add_worksheet("1. Buy Box (Gate)"); G.hide_gridlines(2)
+    G.set_column(0, 0, 26); G.set_column(1, 1, 16); G.set_column(2, 2, 46); G.set_column(3, 3, 10)
+    G.merge_range(0, 0, 0, 3, "Step 1 — Buy Box gate (hard filter)", F["title"])
+    G.merge_range(1, 0, 1, 3, "Fail any row → the deal scores 0 (Not a Match). Formulas reference the green inputs.", F["sub"])
+    for c, h in enumerate(["Criterion", "Subject", "Test (live formula)", "Result"]):
+        G.write(3, c, h, F["hdr"])
+    gate_cells = []
+    gdefs = [("Year built", "p_year", "bb_year_low", "bb_year_high", "between"),
+             ("Living area (sqft)", "p_sqft", "bb_sqft_low", "bb_sqft_high", "between"),
+             ("AVM in band", "p_avm", "bb_price_low", "bb_price_high", "between"),
+             ("Corporate / rent-zip note", "p_corp", None, None, "info")]
+    gpass = {row["field"]: row["pass"] for row in trace["gate"]["rows"]} if trace else {}
+    subj2field = {"p_year": "yearbuilt", "p_sqft": "sqft", "p_avm": "avm"}
+    pval = {"p_year": _num(prop.get("yearbuilt")), "p_sqft": _num(prop.get("sqft")), "p_avm": _num(prop.get("avm"))}
+    r = 4
+    for lbl, subj, lo, hi, kind in gdefs:
+        G.write(r, 0, lbl, F["lbl"])
+        if kind == "between":
+            G.write_formula(r, 1, "=%s" % subj, F["cellR"], pval.get(subj, 0))
+            f = "=IF(AND(%s>=%s,%s<=%s),\"PASS\",\"FAIL\")" % (subj, lo, subj, hi)
+            G.write_formula(r, 2, "=\"%s ≤ \"&TEXT(%s,\"#,##0\")&\" ≤ %s\"" % (lo, subj, hi), F["fx"])
+            res = "PASS" if gpass.get(subj2field.get(subj), True) else "FAIL"
+            G.write_formula(r, 3, f, F["passC"], res); gate_cells.append("$D$%d" % (r+1))
+        else:
+            G.write(r, 1, "—", F["cellR"])
+            G.write(r, 2, "Owner flag + rent-benchmarked zip checked in engine", F["fx"])
+            G.write(r, 3, "—", F["cellR"])
+        r += 1
+    G.write(r+1, 0, "GATE RESULT", F["sec"])
+    gate_formula = "=IF(AND(%s),\"PASS — enters scoring\",\"FAIL — Not a Match\")" % ",".join("%s=\"PASS\"" % c for c in gate_cells)
+    gate_val = "PASS — enters scoring" if (trace and trace["gate"]["passed"]) else ("FAIL — Not a Match" if trace else "PASS — enters scoring")
+    G.merge_range(r+1, 1, r+1, 3, "", F["passC"]); G.write_formula(r+1, 1, gate_formula, F["passC"], gate_val)
+    try: wb.define_name("gate_pass", "='1. Buy Box (Gate)'!$B$%d" % (r+2))
+    except Exception: pass
+
+    # ---------------- 2. SCORING MODEL ----------------
+    S = wb.add_worksheet("2. Scoring Model"); S.hide_gridlines(2)
+    for c, w in [(0, 12), (1, 22), (2, 12), (3, 50), (4, 10), (5, 9), (6, 12)]: S.set_column(c, c, w)
+    S.merge_range(0, 0, 0, 6, "Step 2 — 0–100 score across four pillars", F["title"])
+    S.merge_range(1, 0, 1, 6, "sub-score = normalization(input); contribution = sub-score × weight. Live formulas.", F["sub"])
+    for c, h in enumerate(["Pillar", "Metric", "Input", "Normalization (live formula)", "Sub", "Weight", "Contrib"]):
+        S.write(3, c, h, F["hdr"] if c < 4 else F["hdrR"])
+    # map each metric key -> (input named cell, excel normalization formula)
+    NF = {
+        "yield":   ("p_yield", "=MAX(0,MIN(1,(p_yield-bb_yield_floor)/(bb_yield_target-bb_yield_floor)))*100"),
+        "price":   ("p_avm", "=MAX(0,MIN(1,(bb_price_high-p_avm)/(bb_price_high-bb_price_low)))*100"),
+        "abs":     ("p_corp", "=IF(p_corp=\"Y\",100,0)"),
+        "ten":     ("p_tenure", "=MIN(1,p_tenure/bb_ten_sat)*100"),
+        "proven":  ("p_proven", "=p_proven"), "density": ("p_density", "=p_density"),
+        "target":  ("p_target", "=p_target"), "momentum": ("p_momentum", "=p_momentum"),
+        "sqftfit": ("p_sqft", "=MAX(0,1-ABS(p_sqft-bb_sqft_center)/bb_sqft_half)*100"),
+        "yearfit": ("p_year", "=MAX(0,MIN(1,(p_year-bb_year_low)/(bb_year_high-bb_year_low)))*100"),
+    }
+    r = 4; sub_cells, con_cells, w_cells = [], [], []
+    for m in profile["metrics"]:
+        if not m.get("weight", 0) or not m.get("on", True) or m["key"] not in NF: continue
+        inp, nf = NF[m["key"]]; ck = C_score.get(m["label"], {})
+        S.write(r, 0, m["pillar"], F["cell"]); S.write(r, 1, m["label"], F["cell"])
+        S.write_formula(r, 2, "=%s" % inp, F["num2"], 0)
+        S.write_formula(r, 3, nf, F["fx"], cv(ck, "subscore"))   # sub-score, shown as its formula
+        sub = "$E$%d" % (r+1); wc = "w_%s" % m["key"]
+        S.write_formula(r, 5, "=%s" % wc, F["num2"], cv(ck, "weight", m.get("weight", 0)))
+        S.write_formula(r, 6, "=%s*%s" % (sub, "$F$%d" % (r+1)), F["num2"], cv(ck, "contribution"))
+        sub_cells.append(sub); con_cells.append("$G$%d" % (r+1)); w_cells.append("$F$%d" % (r+1)); r += 1
+    r += 1
+    raw_row = r
+    S.write(r, 1, "Raw score = Σcontrib / Σweight", F["lbl"])
+    S.write_formula(r, 6, "=SUM(%s:%s)/SUM(%s:%s)" % (con_cells[0], con_cells[-1], w_cells[0], w_cells[-1]), F["num2"], cv(C_sum, "raw_score")); r += 1
+    S.write(r, 1, "Risk haircut", F["lbl"])
+    S.write_formula(r, 3, "=1-MAX(0,p_risk-risk_baseline)/(100-risk_baseline)*risk_sens", F["fx"], cv(C_sum, "haircut"))
+    S.write_formula(r, 6, "=1-MAX(0,p_risk-risk_baseline)/(100-risk_baseline)*risk_sens", F["num2"], cv(C_sum, "haircut"))
+    hc_cell = "$G$%d" % (r+1); r += 1
+    S.write(r, 1, "TOTAL SCORE (gated × haircut)", F["sec"])
+    S.write_formula(r, 6, "=IF(gate_pass=\"PASS — enters scoring\",$G$%d*%s,0)" % (raw_row+1, hc_cell), F["num2"], cv(C_sum, "total"))
+    tot_cell = "$G$%d" % (r+1); r += 2
+    S.write(r, 1, "TIER", F["sec"])
+    S.merge_range(r, 3, r, 6, "", F["passC"])
+    S.write_formula(r, 3, "=IF(gate_pass<>\"PASS — enters scoring\",\"Not a Match\",IF(%s>=tier1_cut,\"Tier 1 - Strong\",IF(%s>=tier2_cut,\"Tier 2 - Moderate\",\"Tier 3 - Watch\")))" % (tot_cell, tot_cell), F["passC"], cv(C_sum, "tier", ""))
+
+    # ---------------- 3. UNDERWRITING ----------------
+    W = wb.add_worksheet("3. Underwriting"); W.hide_gridlines(2)
+    W.set_column(0, 0, 28); W.set_column(1, 1, 16); W.set_column(2, 2, 56)
+    W.merge_range(0, 0, 0, 2, "Step 3 — Underwriting (live DCF)", F["title"])
+    W.merge_range(1, 0, 1, 2, "Offer = AVM × (offer %). Change rate/LTV on Assumptions → cap, CoC, DSCR recompute.", F["sub"])
+    for c, h in enumerate(["Line", "Value", "Formula"]): W.write(3, c, h, F["hdr"] if c < 1 else F["hdrR"] if c == 1 else F["hdr"])
+    uw_lines = [
+        ("uw_price", "Offer price", "=p_avm*uw_disc", "money", "AVM × offer %"),
+        ("uw_allin", "All-in basis", "=uw_price*(1+a_closing)+a_rehab", "money", "price×(1+closing)+rehab"),
+        ("uw_loan", "Senior loan", "=uw_price*a_ltv", "money", "price × LTV"),
+        ("uw_cash", "Cash invested", "=uw_allin-uw_loan+uw_loan*a_points", "money", "all-in − loan + loan×points"),
+        ("uw_gsr", "Gross scheduled rent", "=p_rent*12", "money", "rent × 12"),
+        ("uw_egi", "Effective gross income", "=uw_gsr*(1-a_vacancy)", "money", "GSR × (1 − vacancy)"),
+        ("uw_opex", "Operating expenses", "=uw_egi*a_pm+uw_gsr*a_maint+uw_price*a_tax+a_ins+a_hoa+a_other", "money", "mgmt+maint+tax+ins+hoa+other"),
+        ("uw_noi", "Net operating income", "=uw_egi-uw_opex", "money", "EGI − opex"),
+        ("uw_ads", "Annual debt service", "=-PMT(a_rate/12,a_amort*12,uw_loan)*12", "money", "−PMT(rate/12, amort×12, loan)×12"),
+        ("uw_cf", "Cash flow before tax", "=uw_noi-uw_ads", "money", "NOI − debt service"),
+        ("uw_cap", "Going-in cap rate", "=uw_noi/uw_allin", "pct2", "NOI / all-in"),
+        ("uw_coc", "Cash-on-cash", "=uw_cf/uw_cash", "pct2", "cash flow / cash invested"),
+        ("uw_dscr", "DSCR", "=uw_noi/uw_ads", "num2", "NOI / debt service"),
+    ]
+    uw_cache = {"Offer price": (trace["underwrite"]["price"] if trace else 0)}
+    uw_cache.update(C_uw)
+    r = 4
+    for nm, lbl, f, fmt, expl in uw_lines:
+        W.write(r, 0, lbl, F["lbl"]); W.write_formula(r, 1, f, F[fmt], cv(uw_cache, lbl)); W.write(r, 2, expl, F["fx"])
+        try: wb.define_name(nm, "='3. Underwriting'!$B$%d" % (r+1))
+        except Exception: pass
+        r += 1
+    A.activate()
+    wb.close(); buf.seek(0); return buf.read()
+
+
+def _num(x):
+    try:
+        v = float(x); return v if v == v else 0
+    except (TypeError, ValueError):
+        return x if isinstance(x, str) else 0
+
+
 def targets_xlsx(rows, title="Tier-1 Targets"):
     buf = io.BytesIO(); wb = xlsxwriter.Workbook(buf, {"in_memory": True}); ws = wb.add_worksheet("Targets")
     F = _xl_formats(wb)

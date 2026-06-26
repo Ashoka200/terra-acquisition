@@ -218,6 +218,39 @@ select option{background:#fff;color:#0b1320}
 .rd{font-size:12px;color:var(--ink2);margin:3px 0;line-height:1.5}
 .rm{font-size:12px;color:var(--emer-d);font-weight:600}
 .rsrc{font-size:10.5px;color:var(--faint);margin-top:4px;text-transform:uppercase;letter-spacing:.03em}
+/* calculations sheet */
+.calcsheet{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:var(--shadow)}
+.cxhead{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:18px 20px;background:linear-gradient(180deg,#f7faf8,#fff);border-bottom:1px solid var(--line)}
+.cxttl{font-family:Fraunces,serif;font-size:20px;font-weight:600;color:var(--ink)}
+.cxverify{font-size:11px;font-weight:700;padding:4px 9px;border-radius:20px}
+.cxverify.ok{background:#e7f7f0;color:#0a7a55}.cxverify.warn{background:#fff3e0;color:#9a6212}
+.cxstep{padding:16px 20px;border-bottom:1px solid var(--line2)}
+.cxsh{font-weight:700;font-size:14.5px;color:var(--ink);margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.cxsh .muted{font-weight:400;font-size:12.5px}
+.cxn{width:22px;height:22px;border-radius:7px;background:var(--ink);color:#fff;font-size:12px;display:inline-flex;align-items:center;justify-content:center;font-weight:700}
+.cxstamp{margin-left:auto;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px}
+.cxstamp.ok{background:#e7f7f0;color:#0a7a55}.cxstamp.no{background:#fdecea;color:#c0392b}
+.cxtbl{border:1px solid var(--line2);border-radius:10px;overflow:hidden}
+.cxr{display:grid;grid-template-columns:1.1fr 1fr 2.4fr .7fr;border-bottom:1px solid var(--line2)}
+.s-score .cxr{grid-template-columns:.8fr 1.4fr .7fr 2.3fr .5fr .4fr .6fr}
+.s-uw .cxr{grid-template-columns:1.4fr 2.6fr .8fr}
+.cxr:last-child{border-bottom:0}
+.cxc{padding:8px 11px;font-size:12.5px;color:var(--ink2);border-right:1px solid var(--line2);display:flex;align-items:center}
+.cxc:last-child{border-right:0}
+.cxc.th{background:#0b1320;color:#fff;font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.03em}
+.cxc.r{justify-content:flex-end;text-align:right}.cxc.b{font-weight:700;color:var(--ink)}
+.cxc.dim{color:var(--faint)}.cxc.pil{font-weight:700;color:var(--emer-d);font-size:11px}
+.cxc.mono{font-family:Consolas,'SF Mono',monospace;font-size:11.5px;color:#3a5547;background:#fafdfb}
+.cxc.pass{color:#0a7a55;font-weight:800}.cxc.fail{color:#c0392b;font-weight:800}
+.cxroll{margin-top:10px;border:1px solid var(--line2);border-radius:10px;overflow:hidden}
+.cxrr{display:grid;grid-template-columns:1.4fr 2.4fr .7fr;border-bottom:1px solid var(--line2);align-items:center}
+.cxrr:last-child{border-bottom:0}
+.cxrl{padding:9px 11px;font-weight:700;font-size:12.5px;color:var(--ink)}
+.cxrf{padding:9px 11px;font-size:11.5px;color:#3a5547;background:#fafdfb;border-left:1px solid var(--line2);border-right:1px solid var(--line2)}
+.cxrv{padding:9px 11px;text-align:right;font-weight:700;font-size:14px;color:var(--ink)}
+.cxrr.big{background:#f7faf8}.cxrr.big .cxrv{font-size:18px;color:var(--emer-d)}
+.cxrr.tier .cxrv{font-size:13px;color:var(--emer-d)}
+.cxnote,.cxnote *{font-size:12px}.cxnote{padding:14px 20px;color:var(--muted);background:#fafbfc}
 .dbar{display:flex;gap:7px;margin-top:8px}.dbar input{flex:1;height:38px;border:1px solid var(--line);border-radius:9px;padding:0 11px;font-size:13px}
 .fbk{display:flex;gap:6px;margin-top:8px;align-items:center}
 .fbk button{background:#fff;border:1px solid var(--line);border-radius:8px;width:30px;height:28px;cursor:pointer;font-size:14px}
@@ -238,6 +271,7 @@ select option{background:#fff;color:#0b1320}
      <a data-v="uw"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8M8 10h.01M12 10h.01M16 10h.01M8 14h.01M12 14h.01M16 14h.01M8 18h4"/></svg><span>Underwriting</span></a>
      <a data-v="port"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/></svg><span>Portfolio DCF</span></a>
      <a data-v="studio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/><circle cx="12" cy="12" r="3.2"/></svg><span>Model Studio</span></a>
+     <a data-v="calc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8M8 10h2M8 14h2M8 18h2M14 10h2M14 14h2v4h-2z"/></svg><span>Calculations</span></a>
    </nav>
    <div class="sp"></div>
    <div class="freshchip"><span class="dot"></span>Universe scored · <b id="rowcount">…</b> homes<br><span class="muted" style="font-size:11px">Engine parity 100% · v2</span></div>
@@ -344,6 +378,16 @@ select option{background:#fff;color:#0b1320}
        <div class="card" style="margin-top:16px"><div class="ch"><h3>Scoring metrics — reweight or toggle</h3><button class="btn emer" onclick="saveProfile()">Save model</button></div><div class="cb" id="metrics"></div></div>
        <div class="card" style="margin-top:16px"><div class="ch"><h3>Underwriting assumptions</h3></div><div class="cb" id="assump"></div></div>
      </section>
+     <!-- CALCULATIONS -->
+     <section id="calc" class="view">
+       <h1 class="h1">Calculations</h1><p class="sub">Trace any deal end-to-end — the exact gate, scoring and underwriting math, with every formula and number shown. This is the same model that ranks the universe (recomputed live and reconciled to the stored score).</p>
+       <div class="card"><div class="cb" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+         <input id="calcQ" placeholder="APN or address (e.g. 129A01033000 or 'Patriots')" style="flex:1;min-width:240px;padding:10px 12px;border:1px solid var(--line);border-radius:10px">
+         <button class="btn emer" onclick="loadCalc()">Trace calculation</button>
+         <button class="btn ghost" id="calcDl" onclick="dlModel()" style="display:none">⤓ Download working model (.xlsx)</button>
+       </div></div>
+       <div id="calcOut"><div class="muted" style="padding:24px;text-align:center">Enter a property above, or open any property and click <b>See full calculation</b>.</div></div>
+     </section>
      <!-- PORTFOLIO -->
      <section id="port" class="view">
        <h1 class="h1">Portfolio DCF</h1><p class="sub">100-home Tier-1 portfolio · 10-yr levered model with IO→amortizing debt and exit on forward NOI.</p>
@@ -413,7 +457,7 @@ $('#nav').addEventListener('click',e=>{const a=e.target.closest('a');if(!a)retur
  $$('#nav a').forEach(x=>x.classList.remove('on'));a.classList.add('on');
  const v=a.dataset.v;$$('.view').forEach(x=>x.classList.remove('on'));$('#'+v).classList.add('on');
  if(v==='map'){setTimeout(initMap,60)} if(v==='targets'&&!$('#ttable tbody').children.length)loadTargets();
- if(v==='port')loadPort(); if(v==='studio')loadStudio();});
+ if(v==='port')loadPort(); if(v==='studio')loadStudio(); if(v==='calc'&&CALCAPN&&!$('#calcOut .calcsheet'))loadCalc(CALCAPN);});
 
 // ---------------- DASHBOARD ----------------
 const IC={port:'M3 3v18h18',home:'M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',pct:'M19 5L5 19M6.5 6.5h.01M17.5 17.5h.01',pin:'M12 21s-7-6-7-11a7 7 0 0 1 14 0c0 5-7 11-7 11z',hash:'M4 9h16M4 15h16M10 3L8 21M16 3l-2 18',clock:'M12 7v5l3 2'};
@@ -598,7 +642,11 @@ async function openDrawer(apn){
      <a class="btn ghost" style="flex:1;justify-content:center" target="_blank" href="https://www.google.com/maps/search/?api=1&query=${r.lat},${r.lon}">Google Maps</a>
    </div>`:''}
    ${r.lat?`<button class="btn ghost" style="width:100%;justify-content:center;margin-top:8px" onclick="openSite(${r.lat},${r.lon})">🧭 Site intelligence — best use, facilities, flood</button>`:''}
-   <button class="btn ghost" style="width:100%;justify-content:center;margin-top:8px" onclick="dl('/api/report/property.pdf?apn='+encodeURIComponent('${r.apn}'))">⤓ Export property PDF</button>
+   <button class="btn ghost" style="width:100%;justify-content:center;margin-top:8px" onclick="toCalc('${r.apn}')">🧮 See full calculation — gate, score & underwriting</button>
+   <div style="display:flex;gap:8px;margin-top:8px">
+     <button class="btn ghost" style="flex:1;justify-content:center" onclick="dl('/api/report/property.pdf?apn='+encodeURIComponent('${r.apn}'))">⤓ Property PDF</button>
+     <button class="btn ghost" style="flex:1;justify-content:center" onclick="dl('/api/report/model.xlsx?apn='+encodeURIComponent('${r.apn}'))">⤓ Working model .xlsx</button>
+   </div>
    <button class="btn emer" style="width:100%;justify-content:center;margin-top:10px" onclick="toUW(${Math.round(r.avm*0.9)},${r.market_rent})">Open in underwriting →</button>
    <div class="disc"><h3>💬 Team discussion</h3><div id="thread"></div>
      <div class="dbar"><input id="dmsg" placeholder="Add a note… @name to mention" onkeydown="if(event.key==='Enter')postThread()"><button class="btn emer" onclick="postThread()">Post</button></div>
@@ -611,6 +659,61 @@ async function openDrawer(apn){
   L.circleMarker([r.lat,r.lon],{radius:9,color:'#fff',weight:2,fillColor:'#0e9d6e',fillOpacity:1}).addTo(DMAP);}},120);
 }
 function closeDrawer(){$('#scrim').classList.remove('on');$('#drawer').classList.remove('on')}
+// ---------------- CALCULATIONS (show-your-work) ----------------
+let CALCAPN=null;
+function toCalc(apn){CALCAPN=apn;closeDrawer();$$('#nav a').forEach(x=>x.classList.remove('on'));
+ document.querySelector('#nav a[data-v=calc]').classList.add('on');$$('.view').forEach(x=>x.classList.remove('on'));$('#calc').classList.add('on');loadCalc(apn);}
+function dlModel(){if(CALCAPN)dl('/api/report/model.xlsx?apn='+encodeURIComponent(CALCAPN));}
+async function loadCalc(apn){const q=apn||$('#calcQ').value.trim();if(!q){return}
+ CALCAPN=q;$('#calcOut').innerHTML='<div class="muted" style="padding:24px;text-align:center"><span class="spin"></span> tracing the model…</div>';
+ let t;try{t=await post('/api/calc',{query:q});}catch(e){$('#calcOut').innerHTML='<div class="muted" style="padding:24px">Could not trace that property.</div>';return}
+ if(!t||t.error){$('#calcOut').innerHTML='<div class="muted" style="padding:24px">Property not found. Try an APN or a distinct address fragment.</div>';return}
+ renderCalc(t);}
+function calcRow(cells){return '<div class="cxr">'+cells.map(c=>`<div class="cxc ${c.cls||''}">${c.h}</div>`).join('')+'</div>'}
+function renderCalc(t){const p=t.property;CALCAPN=p.apn;$('#calcQ').value=p.apn;$('#calcDl').style.display='';
+ const v=t.verify, ok=v.ties;
+ const verifyBadge=v.stored==null?'':`<span class="cxverify ${ok?'ok':'warn'}">${ok?'✓':'≈'} recomputed ${v.recomputed} = stored ${v.stored}${ok?'':' (Δ'+(Math.abs(v.recomputed-v.stored)).toFixed(2)+')'}</span>`;
+ // header
+ let h=`<div class="calcsheet">
+  <div class="cxhead"><div><div class="cxttl">${esc(p.address||p.apn)}</div>
+    <div class="muted" style="font-size:12.5px">${esc(p.city||'')}, ${esc(p.state||'')} ${esc(p.zip||'')} · APN ${esc(p.apn||'')} · MSA ${esc(t.msa||'—')}</div></div>
+    <div style="text-align:right">${verifyBadge}<div style="margin-top:6px"><span class="badge ${tierBadge(p.tier)}">${p.tier}</span> <b style="font-size:18px;margin-left:6px">${f(p.total_score,1)}</b></div></div>
+  </div>`;
+ // STEP 1 — GATE
+ h+=`<div class="cxstep s-gate"><div class="cxsh"><span class="cxn">1</span> Buy Box gate <span class="muted">— hard filter; fail any line ⇒ Not a Match</span>
+   <span class="cxstamp ${t.gate.passed?'ok':'no'}">${t.gate.verdict}</span></div><div class="cxtbl">`;
+ h+=calcRow([{h:'Criterion',cls:'th'},{h:'Subject value',cls:'th'},{h:'Test',cls:'th mono'},{h:'Result',cls:'th r'}]);
+ t.gate.rows.forEach(g=>{h+=calcRow([{h:g.label},{h:g.value,cls:'r'},{h:g.formula,cls:'mono'},
+   {h:g.pass?'PASS':'FAIL',cls:'r '+(g.pass?'pass':'fail')}]);});
+ h+='</div></div>';
+ // STEP 2 — SCORE
+ const s=t.score;
+ h+=`<div class="cxstep s-score"><div class="cxsh"><span class="cxn">2</span> Scoring — 0–100 across four pillars <span class="muted">— sub-score × weight = contribution</span></div><div class="cxtbl">`;
+ h+=calcRow([{h:'Pillar',cls:'th'},{h:'Metric',cls:'th'},{h:'Input',cls:'th r'},{h:'Normalization',cls:'th mono'},{h:'Sub',cls:'th r'},{h:'Wt',cls:'th r'},{h:'Contrib',cls:'th r'}]);
+ let lastP='';s.rows.forEach(m=>{const pl=m.pillar===lastP?'':m.pillar;lastP=m.pillar;
+   h+=calcRow([{h:pl,cls:'pil'},{h:m.metric},{h:m.input,cls:'r'},{h:m.formula,cls:'mono'},
+     {h:f(m.subscore,1),cls:'r'},{h:f(m.weight,0),cls:'r dim'},{h:f(m.contribution,1),cls:'r b'}]);});
+ h+='</div>';
+ // score rollup
+ h+=`<div class="cxroll">
+   ${rollRow('Raw score',s.raw_formula,f(s.raw_score,2))}
+   ${rollRow('Risk haircut',s.haircut_formula,f(s.haircut,3),'risk index '+f(s.risk_index,0)+' vs baseline '+f(s.risk_baseline,0))}
+   ${rollRow('Total score',s.total_formula,f(s.total,2),'','big')}
+   ${rollRow('Tier',s.tier_formula,s.tier,'','tier')}
+ </div></div>`;
+ // STEP 3 — UNDERWRITE
+ if(t.underwrite.rows.length){const u=t.underwrite;
+  h+=`<div class="cxstep s-uw"><div class="cxsh"><span class="cxn">3</span> Underwriting <span class="muted">— offer at ${pct(u.discount)} of AVM = ${f(u.price)} · rent ${f(u.rent)}/mo</span></div><div class="cxtbl">`;
+  h+=calcRow([{h:'Line',cls:'th'},{h:'Formula',cls:'th mono'},{h:'Value',cls:'th r'}]);
+  u.rows.forEach(r=>{const isPct=/cap|cash-on/i.test(r.label),isR=/dscr/i.test(r.label);
+    const val=isPct?pct(r.value,2):isR?f(r.value,2):f(r.value);
+    const em=/Net operating|Cash flow|cap rate|Cash-on|DSCR/i.test(r.label);
+    h+=calcRow([{h:r.label,cls:em?'b':''},{h:r.formula,cls:'mono'},{h:val,cls:'r '+(em?'b':'')}]);});
+  h+='</div></div>';}
+ h+=`<div class="cxnote">Every number above is computed by the live engine for this property and reconciled to the stored universe score. Download the <b>working model (.xlsx)</b> for the same logic as editable, interlinked Excel formulas.</div></div>`;
+ $('#calcOut').innerHTML=h;}
+function rollRow(label,formula,val,note,kind){return `<div class="cxrr ${kind||''}"><div class="cxrl">${label}${note?'<span class="muted" style="font-weight:400;font-size:11px"> · '+note+'</span>':''}</div>
+  <div class="cxrf mono">${formula}</div><div class="cxrv">${val}</div></div>`}
 const RSEVC={Critical:'#dc4a3d',High:'#e2783a',Medium:'#e0a23a',Low:'#3f7fd6',Minor:'#8a93a3',Info:'#9aa3b2'};
 async function loadRisk(apn){let d;try{d=await post('/api/risk',{apn});}catch(e){$('#riskpanel').innerHTML='<div class="muted" style="font-size:12px">Risk model unavailable.</div>';return;}
  if(!d||d.error){$('#riskpanel').innerHTML='<div class="muted" style="font-size:12px">No risk profile.</div>';return;}

@@ -7,6 +7,7 @@ Two brains:
     richer free-form questions. Still grounded: the LLM calls tools, never computes.
 """
 import os, re, json
+import knowledge
 
 MODEL = os.environ.get("ATLAS_MODEL", "claude-opus-4-8")
 
@@ -44,6 +45,10 @@ TOOL_SPECS = [
     {"name": "massing", "description": "Estimate keys/units a parcel supports from area + footprint shape + zoning (FAR/height/coverage), with vs without ground-floor retail.",
      "input_schema": {"type": "object", "properties": {"area": {"type": "number"}, "use": {"type": "string"},
         "shape": {"type": "string"}, "far": {"type": "number"}, "height": {"type": "number"}, "coverage": {"type": "number"}}, "required": ["area"]}},
+    {"name": "explain_calc", "description": "Trace ONE deal end-to-end: gate pass/fail, top score drivers (metric/pillar/sub-score/weight/contribution), raw→haircut→total, tier, and cap/CoC/DSCR. Use to answer 'why is X a Tier 1/3?', 'what drives this score?', 'show the math for this property'.",
+     "input_schema": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}},
+    {"name": "risk", "description": "Multi-dimension acquisition risk for one property: grade A–F, score, decision, and the top severity-ranked flags (flood, climate/insurance, regulatory, age, leverage, valuation) with mitigations.",
+     "input_schema": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}},
 ]
 
 # ----------------------------------------------------------- offline parsing
@@ -83,9 +88,16 @@ def _resp(text, blocks=None): return {"text": text, "blocks": blocks or []}
 def _kpis(items): return {"type": "kpis", "items": [{"label": l, "value": v} for l, v in items]}
 def _table(cols, rows): return {"type": "table", "cols": cols, "rows": rows}
 
-def offline_answer(msg, dispatch):
+def offline_answer(msg, dispatch, profile=None, assumptions=None):
     m = msg.lower()
+    ap = re.search(r"\b([A-Z0-9]{6,}|\d{2,}[A-Z]\d+)\b", msg)
+    has_prop_ref = bool(ap) or bool(re.search(r"\d{2,}\s+[A-Za-z]", msg))
     try:
+        # 0) knowledge base — definitions / benchmarks / model concepts resolve first
+        #    (guards inside answer_kb defer specific-deal & compute questions to the intents below)
+        if profile is not None and not has_prop_ref:
+            kb = knowledge.answer_kb(msg, profile, assumptions or {}, snapshot=None)
+            if kb: return _resp(kb)
         # 1) reverse goal-seek
         if any(w in m for w in ["what price", "how much", "price to", "pay to", "price that", "implied price"]) or \
            (("price" in m or "pay" in m) and any(w in m for w in ["dscr", "cap", "cash-on-cash", "cash on cash", "coc", "yield"])):
@@ -168,6 +180,38 @@ def offline_answer(msg, dispatch):
             blocks = [_kpis([(u['use'].split(' /')[0].split(' (')[0][:14], str(u['score'])) for u in hbu[:4]]),
                       _table(["Facility", "Distance"], [[x['cat'].replace('_', ' '), str(x['dist_mi']) + ' mi'] for x in fac])]
             return _resp(text, blocks)
+        # 3.6) explain ONE deal — why this tier / what drives the score
+        if (any(w in m for w in ["why", "explain", "breakdown", "what drives", "show the math",
+                "how did", "walk me through", "score of", "calculation for", "justify"])
+                and has_prop_ref and "explain_calc" in dispatch):
+            r = dispatch["explain_calc"](query=(ap.group(1) if ap else msg))
+            if r.get("found"):
+                drv = " · ".join(f"{d['metric']} {d['contribution']:.0f}pt" for d in r["top_drivers"][:3])
+                gate = "cleared the buy box" if r["gate_passed"] else "FAILED the buy box (scored 0)"
+                return _resp(
+                    f"**{r['address']} is {r['tier']} — total score {r['total_score']:.1f}.**\n"
+                    f"**Confidence:** High · recomputed live{' and ties the stored score' if r['ties_stored'] else ''}.\n"
+                    f"**Why:** it {gate}. Raw {r['raw_score']:.1f} × risk haircut {r['risk_haircut']:.3f}. "
+                    f"Top drivers: {drv}.\n"
+                    f"**Underwrite:** cap {_fmt_pct(r['cap_rate'],2)} · CoC {_fmt_pct(r['coc'],2)} · DSCR {r['dscr']:.2f} at {_fmt_money(r['offer_price'])}.\n"
+                    f"**Next:** open Calculations for the full line-by-line trace, or download the working model.",
+                    [_kpis([("Tier", r['tier'].split(' - ')[0]), ("Score", f"{r['total_score']:.1f}"),
+                            ("Cap", _fmt_pct(r['cap_rate'],2)), ("DSCR", f"{r['dscr']:.2f}")])])
+        # 3.7) risk of a specific deal
+        if (any(w in m for w in ["risk of", "how risky", "risky", "risk profile", "risk grade",
+                "red flag", "downside of", "what are the risks", "risks for", "risks of"])
+                and has_prop_ref and "risk" in dispatch):
+            r = dispatch["risk"](query=(ap.group(1) if ap else msg))
+            if r.get("found"):
+                flags = "\n".join(f"• **{x['severity']}** — {x['title']}" for x in r["top_flags"][:4])
+                return _resp(
+                    f"**{r['address']}: risk grade {r['grade']} ({r['score']}/100 — {r['band']}).**\n"
+                    f"**Decision:** {r['decision']}\n{flags}\n"
+                    f"**Next:** open the property drawer for all flags with mitigations + sources.")
+        # 3.8) knowledge base — definitions, benchmarks, model concepts (no API key needed)
+        if profile is not None:
+            kb = knowledge.answer_kb(msg, profile, assumptions or {}, snapshot=None)
+            if kb: return _resp(kb)
         # 4) targets / search
         if any(w in m for w in ["target", "top ", "show", "list", "find", "tier 1", "tier-1", "deals", "best"]):
             tier = "Tier 2 - Moderate" if "tier 2" in m else "Tier 3 - Watch" if "tier 3" in m else "Tier 1 - Strong"
@@ -259,17 +303,18 @@ def offline_answer(msg, dispatch):
             "For open-ended questions, set ANTHROPIC_API_KEY (Railway → Variables) to unlock full conversational ATLAS.")
 
 # ----------------------------------------------------------- entry point
-def ask(message, history, dispatch, snapshot):
+def ask(message, history, dispatch, snapshot, profile=None, assumptions=None):
     use_ai = bool(os.environ.get("ANTHROPIC_API_KEY"))
     try:
         import anthropic
     except ImportError:
         use_ai = False
     if not use_ai:
-        out = offline_answer(message, dispatch); out["mode"] = "offline"; return out
+        out = offline_answer(message, dispatch, profile, assumptions); out["mode"] = "offline"; return out
     try:
         client = anthropic.Anthropic()
-        sys = SYSTEM + "\n\nLIVE SNAPSHOT:\n" + json.dumps(snapshot)
+        spec = knowledge.model_spec(profile, assumptions, snapshot) if profile else ""
+        sys = SYSTEM + "\n\n" + spec + "\n\nLIVE SNAPSHOT:\n" + json.dumps(snapshot, default=str)
         # history items must be {role, content:str}; drop anything malformed
         hist = [m for m in (history or []) if isinstance(m, dict) and m.get("role") in ("user", "assistant") and isinstance(m.get("content"), str)]
         msgs = hist[-12:] + [{"role": "user", "content": message}]
@@ -293,7 +338,7 @@ def ask(message, history, dispatch, snapshot):
         return {"text": "(stopped after tool budget)", "blocks": [], "mode": "ai"}
     except Exception as e:
         # never break — fall back to the deterministic brain with a note
-        out = offline_answer(message, dispatch)
+        out = offline_answer(message, dispatch, profile, assumptions)
         out["text"] = out.get("text", "") + f"\n\n_ATLAS AI is temporarily unavailable ({str(e)[:90]}); answered from the deterministic engine._"
         out["mode"] = "offline-fallback"
         return out

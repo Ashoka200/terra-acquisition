@@ -122,6 +122,16 @@ def t_lookup_property(query):
             for k in ["apn","address","city","state","zip","lat","lon","yearbuilt","sqft","avm",
                       "beds","corp","market_rent","gross_yield","tenure","total_score","tier"]}}
 
+import calc_trace
+@app.route("/api/calc", methods=["POST"])
+def api_calc():
+    b = request.get_json(force=True)
+    r = t_lookup_property(b.get("query") or b.get("apn", ""))
+    if not r.get("found"):
+        return jsonify(error="property not found"), 404
+    prof = projects.get_project(ACTIVE_PID)["profile"]
+    return jsonify(calc_trace.trace(r, REFS, prof, ASSUMP))
+
 import risk_model
 @app.route("/api/risk", methods=["POST"])
 def api_risk():
@@ -224,11 +234,40 @@ def t_massing_tool(area, use="hotel", shape="rectangular", far=2.5, height=65, c
     return site_intel.massing(float(area), use=use, shape=shape, far=float(far),
                               height_ft=float(height), lot_coverage=float(coverage), parking_ratio=float(parking))
 
+def t_explain_calc(query):
+    """Trace one deal's gate/score/underwriting and return a compact driver summary."""
+    r = t_lookup_property(query=query)
+    if not r.get("found"): return {"found": False}
+    prof = projects.get_project(ACTIVE_PID)["profile"]
+    tr = calc_trace.trace(r, REFS, prof, ASSUMP)
+    s = tr["score"]
+    drivers = sorted(s["rows"], key=lambda x: -x["contribution"])[:4]
+    uw = {x["label"]: x["value"] for x in tr["underwrite"]["rows"]}
+    return {"found": True, "address": r.get("address"), "apn": r.get("apn"),
+            "gate_passed": tr["gate"]["passed"], "gate_verdict": tr["gate"]["verdict"],
+            "tier": s["tier"], "total_score": s["total"], "raw_score": s["raw_score"],
+            "risk_haircut": s["haircut"], "ties_stored": tr["verify"]["ties"],
+            "top_drivers": [{"metric": d["metric"], "pillar": d["pillar"], "sub": d["subscore"],
+                             "weight": d["weight"], "contribution": d["contribution"]} for d in drivers],
+            "cap_rate": uw.get("Going-in cap rate"), "coc": uw.get("Cash-on-cash"),
+            "dscr": uw.get("DSCR"), "offer_price": tr["underwrite"]["price"]}
+
+def t_risk(query):
+    """Multi-dimension acquisition risk for one property."""
+    r = t_lookup_property(query=query)
+    if not r.get("found"): return {"found": False}
+    out = risk_model.assess(r, REFS, rate=float(ASSUMP.get("rate", 0.07)), ltv=float(ASSUMP.get("ltv", 0.7)))
+    return {"found": True, "address": r.get("address"), "grade": out["grade"], "score": out["score"],
+            "band": out["band"], "decision": out["decision"], "summary": out["summary"],
+            "top_flags": [{"severity": f["severity"], "category": f["category"], "title": f["title"],
+                           "mitigation": f["mitigation"]} for f in out["top"]]}
+
 DISPATCH = {"market_summary": t_market_summary, "search_targets": t_search_targets,
             "lookup_property": t_lookup_property, "underwrite": t_underwrite,
             "reverse_solve": t_reverse_solve, "portfolio_dcf": t_portfolio_dcf,
             "map_points": t_map_points, "analytics": t_analytics,
-            "geocode": t_geocode, "site_analysis": t_site_analysis, "massing": t_massing_tool}
+            "geocode": t_geocode, "site_analysis": t_site_analysis, "massing": t_massing_tool,
+            "explain_calc": t_explain_calc, "risk": t_risk}
 
 # ---------------- projects / model studio ----------------
 @app.route("/api/types")
@@ -349,6 +388,16 @@ def rep_property():
     if not p.get("found"): return jsonify(error="not found"), 404
     uw = t_underwrite(p["avm"] * 0.9, p["market_rent"])
     return _dl(reports.property_pdf(p, uw), "application/pdf", "Terra_Property.pdf")
+
+@app.route("/api/report/model.xlsx")
+def rep_model():
+    p = t_lookup_property(query=request.args.get("apn", ""))
+    if not p.get("found"): return jsonify(error="not found"), 404
+    prof = projects.get_project(ACTIVE_PID)["profile"]
+    loc = calc_trace._loc_values(p.get("zip"), REFS)
+    tr = calc_trace.trace(p, REFS, prof, ASSUMP)
+    fn = "Terra_Model_%s.xlsx" % str(p.get("apn", "property"))[:20]
+    return _dl(reports.model_xlsx(p, prof, ASSUMP, loc, trace=tr), XLSX, fn)
 
 # ---------------- live for-sale listings (RentCast / pluggable) ----------------
 import listings
@@ -569,8 +618,11 @@ def api(tool):
 @app.route("/chat", methods=["POST"])
 def chat():
     body = request.get_json(force=True)
+    prof = projects.get_project(ACTIVE_PID)["profile"]
+    snap = t_market_summary()
+    snap["rows"] = len(SCORED)
     out = assistant.ask(body.get("message", ""), body.get("history", []),
-                        DISPATCH, t_market_summary())
+                        DISPATCH, snap, profile=prof, assumptions=ASSUMP)
     return jsonify(out)
 
 if __name__ == "__main__":
