@@ -362,6 +362,161 @@ def api_rescore():
     return jsonify(rows=len(SCORED), tiers=SCORED["tier"].value_counts().to_dict(),
                    scored_with=[m["key"] for m in prof["metrics"] if m.get("on", True) and m.get("input") in scored.columns])
 
+# ---------------- DATA ROOM: per-project downloads + upload-and-compare ----------------
+import compare
+CANDIDATES = {}  # pid -> {"raw_path", "scored", "compare"} staged upload awaiting Apply
+
+def _project_raw(d):
+    """The effective raw input for a project (its own source, else the master universe)."""
+    src = d.get("source")
+    if src and os.path.exists(src):
+        raw = pd.read_parquet(src) if src.endswith(".parquet") else pd.read_csv(src)
+        return projects.apply_map(raw, d.get("column_map"))
+    return pd.read_parquet(os.path.join(DATA, "universe_raw.parquet"))
+
+def _auto_map(columns, ptype):
+    cols = [str(c) for c in columns]; low = {c.lower(): c for c in cols}; out = {}
+    for cf in projects.CANONICAL.get(ptype, []):
+        k = cf.replace("?", "").lower()
+        hit = low.get(k) or next((c for c in cols if k == c.lower().strip()), None) \
+              or next((c for c in cols if k in c.lower()), None)
+        if hit: out[cf.replace("?", "")] = hit
+    return out
+
+def _rep_property():
+    """Highest-scoring Tier-1 row as the worked example for the project model workbook."""
+    t1 = SCORED[SCORED["tier"] == "Tier 1 - Strong"]
+    src = t1 if len(t1) else SCORED
+    r = src.sort_values("total_score", ascending=False).iloc[0]
+    return t_lookup_property(query=str(r["apn"]))
+
+SOURCE_WB = os.path.join(DATA, "..", "Potential Targets - v2 (Fixed).xlsx")
+
+@app.route("/api/project/dataroom")
+def api_dataroom():
+    d = projects.get_project(ACTIVE_PID) or {}
+    rep = _rep_property() if len(SCORED) else {}
+    arts = [
+        {"key": "model", "name": "Working model (live formulas)", "fmt": "xlsx",
+         "desc": "The full model as an editable, interlinked Excel — Buy Box, Scoring, Underwriting. Worked on a representative Tier-1 deal; change any assumption and it recomputes.",
+         "url": "/api/report/project_model.xlsx", "available": bool(rep.get("found"))},
+        {"key": "targets", "name": "Scored targets", "fmt": "xlsx",
+         "desc": "Ranked Tier-1 targets with AVM, rent, yield, tenure and score.",
+         "url": "/api/report/targets.xlsx?limit=500", "available": True},
+        {"key": "dataset", "name": "Full scored dataset", "fmt": "csv",
+         "desc": f"Every scored property in this project ({len(SCORED):,} rows) with tier and score.",
+         "url": "/api/report/scored.csv", "available": True},
+        {"key": "portfolio_pdf", "name": "Portfolio report", "fmt": "pdf",
+         "desc": "10-year levered DCF — IRR, equity multiple, DSCR, cash flows.",
+         "url": "/api/report/portfolio.pdf", "available": True},
+        {"key": "portfolio_xlsx", "name": "Portfolio model", "fmt": "xlsx",
+         "desc": "Portfolio cash-flow workbook with chart.", "url": "/api/report/portfolio.xlsx", "available": True},
+        {"key": "source", "name": "Firm source workbook (reference)", "fmt": "xlsx",
+         "desc": "The original de-bloated firm workbook this engine was ported from (100% parity). Large file; reference only.",
+         "url": "/api/report/source.xlsx", "available": os.path.exists(SOURCE_WB)},
+    ]
+    return jsonify({"project": {"id": d.get("id"), "name": d.get("name"), "type": d.get("type"),
+                    "rows": int(len(SCORED)), "source": "uploaded data" if d.get("source") else "master universe"},
+                    "artifacts": [a for a in arts if a["available"] or a["key"] == "source"],
+                    "snapshot": compare.snapshot(SCORED),
+                    "staged": ACTIVE_PID in CANDIDATES})
+
+@app.route("/api/report/scored.csv")
+def rep_scored_csv():
+    return _dl(SCORED.to_csv(index=False).encode(), "text/csv", "Terra_Scored_Dataset.csv")
+
+@app.route("/api/report/project_model.xlsx")
+def rep_project_model():
+    rep = _rep_property()
+    if not rep.get("found"): return jsonify(error="no scored rows"), 404
+    prof = projects.get_project(ACTIVE_PID)["profile"]
+    loc = calc_trace._loc_values(rep.get("zip"), REFS)
+    tr = calc_trace.trace(rep, REFS, prof, ASSUMP)
+    return _dl(reports.model_xlsx(rep, prof, ASSUMP, loc, trace=tr), XLSX, "Terra_Working_Model.xlsx")
+
+@app.route("/api/report/source.xlsx")
+def rep_source_wb():
+    if not os.path.exists(SOURCE_WB):
+        return jsonify(error="source workbook not present in this deployment"), 404
+    from flask import send_file
+    return send_file(SOURCE_WB, as_attachment=True, download_name="Potential_Targets_Firm_Model.xlsx")
+
+@app.route("/api/project/upload_compare", methods=["POST"])
+def api_upload_compare():
+    """Score an uploaded dataset with the project's current model and diff vs the live universe."""
+    f = request.files.get("file")
+    if not f: return jsonify(error="no file"), 400
+    import werkzeug.utils
+    name = werkzeug.utils.secure_filename(f.filename) or "upload"
+    if not name.lower().endswith((".csv", ".parquet", ".xlsx")):
+        return jsonify(error="csv / xlsx / parquet only"), 400
+    updir = os.path.join(DATA, "uploads"); os.makedirs(updir, exist_ok=True)
+    path = os.path.join(updir, name); f.save(path)
+    d = projects.get_project(ACTIVE_PID); prof = d["profile"]
+    fixes = prof.get("fixes", {"avm_discount": 0.9, "rent_realization": 0.95})
+    if isinstance(fixes, dict) and "fixes" in fixes: fixes = fixes["fixes"]
+    try:
+        up = pd.read_parquet(path) if name.endswith(".parquet") else \
+             (pd.read_excel(path) if name.endswith(".xlsx") else pd.read_csv(path))
+    except Exception as e:
+        return jsonify(error="could not read file: " + str(e)[:120]), 400
+    cmap = _auto_map(up.columns, d["type"])
+    up = projects.apply_map(up, cmap)
+    if "apn" not in up.columns and "id" in up.columns: up = up.rename(columns={"id": "apn"})
+    if "proptype" not in up.columns and d["type"] == "SFR": up["proptype"] = "SFR"
+    missing = [c for c in ("apn", "avm", "sqft", "yearbuilt", "zip") if c not in up.columns]
+    if missing:
+        return jsonify(error="couldn't map required columns: " + ", ".join(missing) +
+                       ". Use the New-project wizard for a custom schema."), 400
+    base = _project_raw(d)
+    combined = pd.concat([base, up], ignore_index=True)
+    for c in ("apn", "zip"):  # normalize mixed-type key cols so they persist cleanly
+        if c in combined.columns: combined[c] = combined[c].astype(str)
+    combined = combined.drop_duplicates("apn", keep="last")
+    try:
+        scored, _ = re_core.run(combined, REFS, fixes, ptype=d["type"], profile=prof)
+    except Exception as e:
+        return jsonify(error="re-score failed: " + str(e)[:140]), 500
+    if "market_rent" not in scored.columns and "max_rent" in scored.columns:
+        scored["market_rent"] = (pd.to_numeric(scored["max_rent"], errors="coerce") * fixes.get("rent_realization", 1)).round(0)
+    new_scored = scored[[c for c in DISPLAY_COLS if c in scored.columns]].copy()
+    raw_path = os.path.join(updir, "_candidate_%s.parquet" % ACTIVE_PID)
+    try:
+        combined.to_parquet(raw_path, index=False)
+    except Exception:  # mixed object dtypes — fall back to CSV (read path handles both)
+        raw_path = os.path.join(updir, "_candidate_%s.csv" % ACTIVE_PID)
+        combined.to_csv(raw_path, index=False)
+    diff = compare.compare(SCORED, new_scored)
+    diff["upload"] = {"file": name, "rows_in_file": int(len(up)), "mapped": cmap}
+    CANDIDATES[ACTIVE_PID] = {"raw_path": raw_path, "scored": new_scored, "compare": diff}
+    return jsonify(diff)
+
+@app.route("/api/project/apply_upload", methods=["POST"])
+def api_apply_upload():
+    global SCORED
+    cand = CANDIDATES.get(ACTIVE_PID)
+    if not cand: return jsonify(error="nothing staged"), 400
+    d = projects.get_project(ACTIVE_PID)
+    d["source"] = cand["raw_path"]; d["column_map"] = {}; d["rows"] = int(len(cand["scored"]))
+    projects.save_project(d)
+    SCORED = cand["scored"]
+    try: SCORED.to_parquet(os.path.join(DATA, "scored.parquet"), index=False)
+    except Exception: pass
+    # invalidate the project's scored cache so reloads use the new data
+    try: os.remove(os.path.join(projects.PROJ_DIR, ACTIVE_PID, "scored.parquet"))
+    except Exception: pass
+    cand["scored"].to_parquet(os.path.join(projects.PROJ_DIR, ACTIVE_PID, "scored.parquet"), index=False)
+    CANDIDATES.pop(ACTIVE_PID, None)
+    return jsonify(ok=True, rows=len(SCORED), tiers=SCORED["tier"].value_counts().to_dict())
+
+@app.route("/api/project/discard_upload", methods=["POST"])
+def api_discard_upload():
+    c = CANDIDATES.pop(ACTIVE_PID, None)
+    if c:
+        try: os.remove(c["raw_path"])
+        except Exception: pass
+    return jsonify(ok=True)
+
 # ---------------- formatted report export ----------------
 from flask import Response
 import reports

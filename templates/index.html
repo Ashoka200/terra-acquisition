@@ -251,6 +251,41 @@ select option{background:#fff;color:#0b1320}
 .cxrr.big{background:#f7faf8}.cxrr.big .cxrv{font-size:18px;color:var(--emer-d)}
 .cxrr.tier .cxrv{font-size:13px;color:var(--emer-d)}
 .cxnote,.cxnote *{font-size:12px}.cxnote{padding:14px 20px;color:var(--muted);background:#fafbfc}
+/* data room */
+.roomhdr{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+.roomkpis{display:flex;gap:10px;flex-wrap:wrap}
+.rk{background:#e7f7f0;border-radius:10px;padding:8px 14px;text-align:center;min-width:78px}
+.rkl{font-size:10px;font-weight:700;color:#0a7a55;text-transform:uppercase;letter-spacing:.03em}
+.rkv{font-size:16px;font-weight:800;color:var(--ink)}
+.dlgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px}
+.dlcard{display:flex;align-items:center;gap:13px;border:1px solid var(--line);border-radius:12px;padding:13px 14px;background:#fff}
+.dlcard.off{opacity:.55}
+.dlft{flex:0 0 auto;width:44px;height:44px;border-radius:10px;background:#f2f6f4;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:10px;letter-spacing:.02em}
+.dlbody{flex:1;min-width:0}.dlname{font-weight:700;font-size:13.5px;color:var(--ink)}
+.dldesc{font-size:11.5px;color:var(--muted);line-height:1.45;margin-top:2px}
+.dlbtn{flex:0 0 auto;padding:7px 14px}
+.uprow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.uprow input[type=file]{padding:9px;border:1px dashed var(--line);border-radius:10px;background:#fafdfb;font-size:13px}
+.cmperr{background:#fdecea;border:1px solid #f3c0bb;color:#c0392b;border-radius:10px;padding:11px 13px;font-size:13px;margin-top:12px}
+.cmpok{background:#e7f7f0;border:1px solid #b6e3cd;color:#0a7a55;border-radius:10px;padding:11px 13px;font-size:13.5px;font-weight:600;margin-top:12px}
+.cmpwrap{margin-top:14px;border:1px solid var(--line);border-radius:13px;overflow:hidden}
+.cmphd{background:#0b1320;color:#fff;padding:12px 16px;font-size:13px}
+.cmpgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:14px 16px}
+@media(max-width:760px){.cmpgrid{grid-template-columns:1fr}}
+.cmpcard{border:1px solid var(--line2);border-radius:11px;padding:12px 13px;background:#fff}
+.cmpttl{font-weight:700;font-size:12.5px;color:var(--ink);margin-bottom:9px}
+.cmprow{display:grid;grid-template-columns:1.4fr .8fr .8fr .8fr;align-items:center;padding:5px 0;font-size:12.5px;border-bottom:1px solid #f1f4f8}
+.cmprow.hd{font-size:10px;font-weight:700;color:var(--faint);text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid var(--line2)}
+.cmprow.tot{border-top:1px solid var(--line2);font-weight:700;margin-top:3px}
+.cmprow .r{text-align:right}.cmprow .b{font-weight:700;color:var(--ink)}
+.dc{font-size:11px;font-weight:800;padding:1px 6px;border-radius:5px}
+.dc.up{color:#0a7a55;background:#e7f7f0}.dc.down{color:#c0392b;background:#fdecea}.dc.flat{color:#8a93a3}
+.migrow{display:flex;justify-content:space-between;padding:5px 0;font-size:12.5px;border-bottom:1px solid #f1f4f8}
+.migrow.added{color:#0a7a55;font-weight:600}
+.mvrow{display:grid;grid-template-columns:1.7fr 1fr .5fr;align-items:center;gap:6px;padding:5px 0;font-size:12px;border-bottom:1px solid #f1f4f8}
+.mvrow .mva{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink2)}
+.mvrow .up{color:#0a7a55;font-weight:700;text-align:right}.mvrow .down{color:#c0392b;font-weight:700;text-align:right}
+.cmpbar{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:13px 16px;background:#fafbfc;border-top:1px solid var(--line2);flex-wrap:wrap}
 .dbar{display:flex;gap:7px;margin-top:8px}.dbar input{flex:1;height:38px;border:1px solid var(--line);border-radius:9px;padding:0 11px;font-size:13px}
 .fbk{display:flex;gap:6px;margin-top:8px;align-items:center}
 .fbk button{background:#fff;border:1px solid var(--line);border-radius:8px;width:30px;height:28px;cursor:pointer;font-size:14px}
@@ -272,6 +307,7 @@ select option{background:#fff;color:#0b1320}
      <a data-v="port"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/></svg><span>Portfolio DCF</span></a>
      <a data-v="studio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/><circle cx="12" cy="12" r="3.2"/></svg><span>Model Studio</span></a>
      <a data-v="calc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8M8 10h2M8 14h2M8 18h2M14 10h2M14 14h2v4h-2z"/></svg><span>Calculations</span></a>
+     <a data-v="room"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg><span>Data Room</span></a>
    </nav>
    <div class="sp"></div>
    <div class="freshchip"><span class="dot"></span>Universe scored · <b id="rowcount">…</b> homes<br><span class="muted" style="font-size:11px">Engine parity 100% · v2</span></div>
@@ -388,6 +424,11 @@ select option{background:#fff;color:#0b1320}
        </div></div>
        <div id="calcOut"><div class="muted" style="padding:24px;text-align:center">Enter a property above, or open any property and click <b>See full calculation</b>.</div></div>
      </section>
+     <!-- DATA ROOM -->
+     <section id="room" class="view">
+       <h1 class="h1">Data Room</h1><p class="sub" id="roomSub">Everything for the active project in one place — download the working model and data, or add new data and see exactly how the results change before you commit.</p>
+       <div id="roomOut"><div class="muted" style="padding:24px"><span class="spin"></span> loading…</div></div>
+     </section>
      <!-- PORTFOLIO -->
      <section id="port" class="view">
        <h1 class="h1">Portfolio DCF</h1><p class="sub">100-home Tier-1 portfolio · 10-yr levered model with IO→amortizing debt and exit on forward NOI.</p>
@@ -457,7 +498,7 @@ $('#nav').addEventListener('click',e=>{const a=e.target.closest('a');if(!a)retur
  $$('#nav a').forEach(x=>x.classList.remove('on'));a.classList.add('on');
  const v=a.dataset.v;$$('.view').forEach(x=>x.classList.remove('on'));$('#'+v).classList.add('on');
  if(v==='map'){setTimeout(initMap,60)} if(v==='targets'&&!$('#ttable tbody').children.length)loadTargets();
- if(v==='port')loadPort(); if(v==='studio')loadStudio(); if(v==='calc'&&CALCAPN&&!$('#calcOut .calcsheet'))loadCalc(CALCAPN);});
+ if(v==='port')loadPort(); if(v==='studio')loadStudio(); if(v==='calc'&&CALCAPN&&!$('#calcOut .calcsheet'))loadCalc(CALCAPN); if(v==='room')loadRoom();});
 
 // ---------------- DASHBOARD ----------------
 const IC={port:'M3 3v18h18',home:'M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',pct:'M19 5L5 19M6.5 6.5h.01M17.5 17.5h.01',pin:'M12 21s-7-6-7-11a7 7 0 0 1 14 0c0 5-7 11-7 11z',hash:'M4 9h16M4 15h16M10 3L8 21M16 3l-2 18',clock:'M12 7v5l3 2'};
@@ -714,6 +755,75 @@ function renderCalc(t){const p=t.property;CALCAPN=p.apn;$('#calcQ').value=p.apn;
  $('#calcOut').innerHTML=h;}
 function rollRow(label,formula,val,note,kind){return `<div class="cxrr ${kind||''}"><div class="cxrl">${label}${note?'<span class="muted" style="font-weight:400;font-size:11px"> · '+note+'</span>':''}</div>
   <div class="cxrf mono">${formula}</div><div class="cxrv">${val}</div></div>`}
+// ---------------- DATA ROOM ----------------
+const FMTIC={xlsx:'#0a7a55',csv:'#1f7a4d',pdf:'#c0392b'};
+async function loadRoom(){let d;try{d=await get('/api/project/dataroom');}catch(e){$('#roomOut').innerHTML='<div class="muted" style="padding:24px">Run the Flask app to load the Data Room.</div>';return}
+ const p=d.project,s=d.snapshot;
+ let h=`<div class="card"><div class="cb">
+   <div class="roomhdr"><div><div style="font-weight:700;font-size:16px">${esc(p.name||'Project')}</div>
+     <div class="muted" style="font-size:12.5px">${esc(p.type)} · ${f(p.rows)} scored rows · data source: ${esc(p.source)}</div></div>
+     <div class="roomkpis">${[['Tier 1',f(s.tiers['Tier 1 - Strong'])],['Tier 2',f(s.tiers['Tier 2 - Moderate'])],['Match rate',pct(s.match_rate)],['Avg T1 yield',pct(s.tier1_avg_yield)]].map(k=>`<div class="rk"><div class="rkl">${k[0]}</div><div class="rkv">${k[1]}</div></div>`).join('')}</div>
+   </div></div></div>`;
+ // downloads
+ h+=`<h3 style="margin:18px 0 10px;font-size:15px">Downloads <span class="muted" style="font-weight:400;font-size:12.5px">— working model downloads with live, editable formulas</span></h3><div class="dlgrid">`;
+ d.artifacts.forEach(a=>{const dis=!a.available;
+   h+=`<div class="dlcard ${dis?'off':''}">
+     <div class="dlft" style="color:${FMTIC[a.fmt]||'#555'}">${a.fmt.toUpperCase()}</div>
+     <div class="dlbody"><div class="dlname">${esc(a.name)}</div><div class="dldesc">${esc(a.desc)}</div></div>
+     ${dis?'<span class="muted" style="font-size:11px">not in this deployment</span>':`<button class="btn emer dlbtn" onclick="dl('${a.url}')">Download</button>`}
+   </div>`;});
+ h+='</div>';
+ // upload + compare
+ h+=`<h3 style="margin:22px 0 10px;font-size:15px">Add data &amp; compare <span class="muted" style="font-weight:400;font-size:12.5px">— upload more properties; the model re-scores and shows what changed before you commit</span></h3>
+   <div class="card"><div class="cb">
+     <div class="uprow"><input type="file" id="upFile" accept=".csv,.xlsx,.parquet" style="flex:1">
+       <button class="btn emer" id="upBtn" onclick="uploadCompare()">Re-score &amp; compare</button></div>
+     <div class="note" style="font-size:11.5px;margin-top:8px">CSV / XLSX / Parquet. Columns are auto-mapped (APN, AVM, sqft, year built, zip required). New rows are merged into the universe and everything re-scores.</div>
+     <div id="cmpOut"></div>
+   </div></div>`;
+ $('#roomOut').innerHTML=h;
+ if(d.staged)$('#cmpOut').innerHTML='<div class="muted" style="padding:10px 0">A previous upload is staged — re-upload to refresh the comparison.</div>';}
+async function uploadCompare(){const f=$('#upFile').files[0];if(!f){alert('Choose a file first.');return}
+ const b=$('#upBtn');b.disabled=true;b.innerHTML='<span class="spin"></span> scoring…';
+ const fd=new FormData();fd.append('file',f);
+ let d;try{d=await fetch('/api/project/upload_compare',{method:'POST',body:fd}).then(r=>r.json());}catch(e){d={error:'upload failed'}}
+ b.disabled=false;b.innerHTML='Re-score &amp; compare';
+ if(!d||d.error){$('#cmpOut').innerHTML=`<div class="cmperr">${esc((d&&d.error)||'comparison failed')}</div>`;return}
+ renderCompare(d);}
+function deltaChip(n){const cls=n>0?'up':n<0?'down':'flat';const sign=n>0?'+':'';return `<span class="dc ${cls}">${sign}${f(n)}</span>`}
+function renderCompare(d){const b=d.before,a=d.after,dl=d.deltas;
+ const tierRow=(t)=>`<div class="cmprow"><div>${t.split(' - ')[0]}</div><div class="r">${f(b.tiers[t])}</div><div class="r b">${f(a.tiers[t])}</div><div class="r">${deltaChip(dl.tiers[t])}</div></div>`;
+ const migs=Object.entries(d.migration||{}).sort((x,y)=>y[1]-x[1]).slice(0,8);
+ const mvr=(m,cls)=>`<div class="mvrow"><div class="mva">${esc(m.address||m.apn)}</div><div class="r">${f(m.old,1)} → <b>${f(m.new,1)}</b></div><div class="r ${cls}">${m.delta>0?'+':''}${f(m.delta,1)}</div></div>`;
+ let h=`<div class="cmpwrap">
+   <div class="cmphd">📊 Impact of <b>${esc(d.upload.file)}</b> — ${f(d.upload.rows_in_file)} rows in file · ${f(d.added.count)} new properties · ${f(d.common)} overlapping</div>
+   <div class="cmpgrid">
+     <div class="cmpcard"><div class="cmpttl">Tier distribution — before → after</div>
+       <div class="cmprow hd"><div>Tier</div><div class="r">Before</div><div class="r">After</div><div class="r">Δ</div></div>
+       ${['Tier 1 - Strong','Tier 2 - Moderate','Tier 3 - Watch','Not a Match'].map(tierRow).join('')}
+       <div class="cmprow tot"><div>Total rows</div><div class="r">${f(b.rows)}</div><div class="r b">${f(a.rows)}</div><div class="r">${deltaChip(dl.rows)}</div></div>
+       <div class="cmprow"><div>Match rate</div><div class="r">${pct(b.match_rate)}</div><div class="r b">${pct(a.match_rate)}</div><div class="r">${deltaChip(Math.round(dl.match_rate*10000)/100)}%</div></div>
+     </div>
+     <div class="cmpcard"><div class="cmpttl">Tier migrations <span class="muted" style="font-weight:400">(on overlapping properties)</span></div>
+       ${migs.length?migs.map(m=>`<div class="migrow"><span>${esc(m[0])}</span><b>${f(m[1])}</b></div>`).join(''):'<div class="muted" style="padding:8px 0">No tier changes on overlapping rows.</div>'}
+       ${d.added.count?`<div class="migrow added"><span>＋ New rows added</span><b>${f(d.added.count)}</b></div>`:''}
+     </div>
+   </div>`;
+ if((d.movers.up||[]).length||(d.movers.down||[]).length){
+   h+=`<div class="cmpgrid">
+     <div class="cmpcard"><div class="cmpttl">▲ Biggest score gains</div>${(d.movers.up||[]).map(m=>mvr(m,'up')).join('')||'<div class="muted">—</div>'}</div>
+     <div class="cmpcard"><div class="cmpttl">▼ Biggest score drops</div>${(d.movers.down||[]).map(m=>mvr(m,'down')).join('')||'<div class="muted">—</div>'}</div>
+   </div>`;}
+ h+=`<div class="cmpbar"><div class="muted" style="font-size:12px">Review the changes, then apply to make this the project's live data (Targets, Map, Dashboard all update), or discard.</div>
+   <div style="display:flex;gap:8px"><button class="btn ghost" onclick="discardUpload()">Discard</button>
+   <button class="btn emer" onclick="applyUpload()">✓ Apply updated data</button></div></div></div>`;
+ $('#cmpOut').innerHTML=h;}
+async function applyUpload(){if(!confirm('Apply the updated data? This replaces the project’s live scored universe.'))return;
+ const r=await post('/api/project/apply_upload',{});
+ if(r.ok){$('#cmpOut').innerHTML=`<div class="cmpok">✓ Applied — project now has ${f(r.rows)} scored rows. Targets, Map and Dashboard now reflect the new data.</div>`;
+   loadAll();loadProjects();}
+ else $('#cmpOut').innerHTML=`<div class="cmperr">${esc(r.error||'apply failed')}</div>`;}
+async function discardUpload(){await post('/api/project/discard_upload',{});$('#cmpOut').innerHTML='<div class="muted" style="padding:10px 0">Discarded. Upload another file to compare.</div>';$('#upFile').value='';}
 const RSEVC={Critical:'#dc4a3d',High:'#e2783a',Medium:'#e0a23a',Low:'#3f7fd6',Minor:'#8a93a3',Info:'#9aa3b2'};
 async function loadRisk(apn){let d;try{d=await post('/api/risk',{apn});}catch(e){$('#riskpanel').innerHTML='<div class="muted" style="font-size:12px">Risk model unavailable.</div>';return;}
  if(!d||d.error){$('#riskpanel').innerHTML='<div class="muted" style="font-size:12px">No risk profile.</div>';return;}
