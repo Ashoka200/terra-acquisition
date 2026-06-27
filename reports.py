@@ -116,6 +116,114 @@ def portfolio_pdf(r, scenario="Base"):
     hf = HeaderFooter("Portfolio Report", scenario + " scenario")
     doc.build(flow, onFirstPage=hf, onLaterPages=hf); buf.seek(0); return buf.read()
 
+SEVCOLOR = {"Critical": colors.HexColor("#c0392b"), "High": colors.HexColor("#e2783a"),
+            "Medium": colors.HexColor("#c79114"), "Low": colors.HexColor("#3f7fd6"),
+            "Minor": colors.HexColor("#7a8597"), "Info": colors.HexColor("#9aa3b2")}
+
+def management_pdf(pl):
+    """Investment-committee report: top-down narrative — thesis → opportunity → returns →
+    risk (every flag) → concentration → recommendation."""
+    r = pl["dcf"]; sm = pl["summary"]; rk = pl["risk"]; scen = pl.get("scenario", "Base")
+    su = r.get("sources_uses", {}); s = r["series"]
+    tiers = sm.get("tiers", {}); t1n = tiers.get("Tier 1 - Strong", 0)
+    buf, doc = _doc("Investment Committee Report", scen + " scenario")
+    flow = []
+    # ---- 1. EXECUTIVE SUMMARY ----
+    flow += [Paragraph("Investment Committee Report", _S["h1"]),
+             Paragraph(f"{pl.get('project','SFR portfolio')} · 100-home Tier-1 build · 10-year levered hold · <b>{scen}</b> scenario.", _S["sub"])]
+    irr = r["levered_irr"]
+    verdict = ("Recommend proceeding" if irr >= 0.13 and r["min_dscr"] >= 1.2 else
+               "Proceed selectively" if irr >= 0.10 else "Hold / re-trade")
+    flow.append(Paragraph(f"<b>Recommendation: {verdict}.</b> A {t1n:,}-property Tier-1 pipeline underwrites to a "
+        f"<b>{_pct(irr)} levered IRR</b> and <b>{r['equity_multiple']:.2f}× equity</b> over a 10-year hold, with a "
+        f"minimum DSCR of {r['min_dscr']:.2f} and a {_pct(r['going_in_cap'],2)} going-in cap. Portfolio risk grades "
+        f"<b>{rk['grade']}</b> ({rk['avg_score']}/100) across the sampled book — material items are identified below with mitigations.", _S["p"]))
+    flow.append(Spacer(1, 8))
+    flow.append(kpi_grid([("Levered IRR", _pct(irr)), ("Equity Multiple", f"{r['equity_multiple']:.2f}×"),
+                  ("Min DSCR", f"{r['min_dscr']:.2f}"), ("Going-in Cap", _pct(r["going_in_cap"],2)),
+                  ("Tier-1 Pipeline", f"{t1n:,}"), ("Match Rate", _pct(sm.get('match_rate',0))),
+                  ("Equity Required", _money(r["equity"])), ("Risk Grade", rk["grade"])]))
+    # ---- 2. THE OPPORTUNITY ----
+    flow.append(Paragraph("1 &nbsp;·&nbsp; The opportunity", _S["h2"]))
+    total = sum(tiers.values()) or 1
+    matched = total - tiers.get("Not a Match", 0)
+    flow.append(Paragraph(f"The buy box screens a {total:,}-property universe down to {matched:,} that clear the gate "
+        f"({_pct(sm.get('match_rate',0))}), of which {t1n:,} are Tier-1. Average Tier-1 gross yield is "
+        f"{_pct(sm.get('tier1_avg_yield',0))} at a {_money(sm.get('tier1_avg_avm',0))} basis.", _S["p"]))
+    funnel = [["Total universe", f"{total:,}", "100%"],
+              ["Clears buy box", f"{matched:,}", _pct(sm.get('match_rate',0))],
+              ["Tier 1 — Strong", f"{tiers.get('Tier 1 - Strong',0):,}", _pct(tiers.get('Tier 1 - Strong',0)/total)],
+              ["Tier 2 — Moderate", f"{tiers.get('Tier 2 - Moderate',0):,}", _pct(tiers.get('Tier 2 - Moderate',0)/total)],
+              ["Tier 3 — Watch", f"{tiers.get('Tier 3 - Watch',0):,}", _pct(tiers.get('Tier 3 - Watch',0)/total)]]
+    flow.append(data_table(["Pipeline stage", "Count", "Share"], funnel,
+                aligns=["LEFT","RIGHT","RIGHT"], widths=[3.4*inch, 2.0*inch, 1.9*inch]))
+    tops = sm.get("tier1_top_states", {})
+    if tops:
+        flow.append(Spacer(1, 6))
+        flow.append(Paragraph(f"<b>Geographic concentration (HHI {sm.get('hhi',0):,}):</b> " +
+            " · ".join(f"{k} {v:,}" for k, v in tops.items()) +
+            (". Concentration is high — diversify metros." if sm.get('hhi',0) > 2500 else "."), _S["p"]))
+    # ---- 3. RETURN THESIS ----
+    flow.append(Paragraph("2 &nbsp;·&nbsp; Return thesis", _S["h2"]))
+    rows = [[f"Year {y}", _money(s["noi"][i]) if i < len(s["noi"]) else "—",
+             _money(s["cfo"][i]) if i < len(s["cfo"]) else "—", _money(s["levered_cf"][i]),
+             (f"{s['dscr'][i]:.2f}" if s["dscr"][i] else "—")] for i, y in enumerate(s["years"])]
+    flow.append(data_table(["Year", "NOI", "Cash from Ops", "Levered CF", "DSCR"], rows,
+                aligns=["LEFT","RIGHT","RIGHT","RIGHT","RIGHT"],
+                widths=[0.9*inch, 1.55*inch, 1.65*inch, 1.65*inch, 1.55*inch]))
+    if "compare" in r:
+        flow.append(Spacer(1, 6)); flow.append(Paragraph("Scenario range", _S["h2"]))
+        crows = [[k, _pct(v["levered_irr"]), f"{v['equity_multiple']:.2f}×", f"{v['min_dscr']:.2f}"]
+                 for k, v in r["compare"].items()]
+        flow.append(data_table(["Scenario", "Levered IRR", "Equity Mult.", "Min DSCR"], crows,
+                    aligns=["LEFT","RIGHT","RIGHT","RIGHT"], widths=[2.2*inch,1.7*inch,1.7*inch,1.7*inch]))
+    if su:
+        flow.append(Spacer(1, 6)); flow.append(Paragraph("Sources &amp; uses", _S["h2"]))
+        flow.append(data_table(["Item", "Amount"],
+            [["Purchase", _money(su["purchase"])], ["Acquisition cost", _money(su["acq_cost"])],
+             ["Rehab", _money(su["rehab"])], ["Loan fee", _money(su["loan_fee"])],
+             ["Senior debt", _money(su["loan"])], ["Equity", _money(su["equity"])]],
+            aligns=["LEFT","RIGHT"], widths=[4.0*inch, 3.3*inch]))
+    # ---- 4. RISK ASSESSMENT (every flag) ----
+    flow.append(Paragraph("3 &nbsp;·&nbsp; Risk assessment", _S["h2"]))
+    sc = rk["severity_counts"]
+    flow.append(Paragraph(f"Across the {rk['n']} highest-scoring Tier-1 deals, the model flags "
+        f"<b>{sc.get('Critical',0)} critical</b>, {sc.get('High',0)} high, {sc.get('Medium',0)} medium, "
+        f"{sc.get('Low',0)} low and {sc.get('Minor',0)} minor items. Every distinct flag is listed below with "
+        f"its prevalence and mitigation; title, environmental and litigation items require ordered reports and are "
+        f"not fabricated.", _S["p"]))
+    flow.append(Spacer(1, 4))
+    _x = lambda t: str(t).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    rrows, rstyle = [], []
+    for i, f in enumerate(rk["flags"]):
+        rrows.append([f["severity"], _x(f["category"]),
+            Paragraph(f"<b>{_x(f['title'])}</b><br/><font size=7 color='#6b7689'>Fix: {_x(f['mitigation'])}</font>", _S["p"]),
+            f"{f['count']}/{rk['n']}"])
+        rstyle.append(("TEXTCOLOR", (0, i+1), (0, i+1), SEVCOLOR.get(f["severity"], colors.black)))
+    rt = data_table(["Sev.", "Category", "Risk & mitigation", "Seen"], rrows,
+                    aligns=["LEFT","LEFT","LEFT","RIGHT"], widths=[0.7*inch, 1.5*inch, 4.0*inch, 0.6*inch])
+    rt.setStyle(TableStyle(rstyle + [("FONTNAME", (0,1), (0,-1), "Helvetica-Bold"), ("FONTSIZE", (0,1), (0,-1), 7.5)]))
+    flow.append(rt)
+    # ---- 5. CONCENTRATION & MARKET ----
+    flow.append(Paragraph("4 &nbsp;·&nbsp; Concentration &amp; market risk", _S["h2"]))
+    conc = ("Tier-1 is highly concentrated geographically (HHI {:,}) — a single-state climate, insurance or "
+            "regulatory shock would hit a large share of the book. Cap any one state near 40% and diversify metros."
+            ).format(sm.get("hhi", 0)) if sm.get("hhi", 0) > 2000 else \
+           "Geographic concentration is moderate; continue to monitor single-metro exposure."
+    flow.append(Paragraph(conc, _S["p"]))
+    # ---- 6. RECOMMENDATION & NEXT STEPS ----
+    flow.append(Paragraph("5 &nbsp;·&nbsp; Recommendation &amp; next steps", _S["h2"]))
+    steps = [f"<b>Decision:</b> {verdict} at the {scen.lower()} case ({_pct(irr)} IRR, {r['min_dscr']:.2f} min DSCR).",
+             "Bind real insurance quotes in climate-exposed states before committing — stress NOI for premium inflation.",
+             "Cap single-state exposure (~40%) and ladder acquisitions to diversify metros.",
+             "Maintain 3–6 months of debt-service reserves given the leverage profile."]
+    for it in rk["needs_report"][:4]:
+        steps.append(f"<b>Diligence:</b> {it['title']} — {it['mitigation']}")
+    for st in steps:
+        flow.append(Paragraph("•&nbsp; " + st, _S["p"])); flow.append(Spacer(1, 2))
+    hf = HeaderFooter("Investment Committee Report", scen + " scenario")
+    doc.build(flow, onFirstPage=hf, onLaterPages=hf); buf.seek(0); return buf.read()
+
 def property_pdf(p, uw):
     buf, doc = _doc("Property Report", p.get("tier", ""))
     flow = [Paragraph(p["address"], _S["h1"]),

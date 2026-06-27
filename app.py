@@ -397,8 +397,8 @@ def api_dataroom():
     d = projects.get_project(ACTIVE_PID) or {}
     rep = _rep_property() if len(SCORED) else {}
     arts = [
-        {"key": "model", "name": "Working model (live formulas)", "fmt": "xlsx",
-         "desc": "The full model as an editable, interlinked Excel — Buy Box, Scoring, Underwriting. Worked on a representative Tier-1 deal; change any assumption and it recomputes.",
+        {"key": "model", "name": "Firm model — full workbook (live formulas)", "fmt": "xlsx",
+         "desc": "Replica of the firm's Excel model (reference tables excluded): Exec Summary, Dashboard, Buy Box, Methodology, Scoring Model, and a live 10-year SFR DCF. Buy box & assumptions are pulled from this project's Model Studio; change any input and it recomputes.",
          "url": "/api/report/project_model.xlsx", "available": bool(rep.get("found"))},
         {"key": "targets", "name": "Scored targets", "fmt": "xlsx",
          "desc": "Ranked Tier-1 targets with AVM, rent, yield, tenure and score.",
@@ -432,7 +432,9 @@ def rep_project_model():
     prof = projects.get_project(ACTIVE_PID)["profile"]
     loc = calc_trace._loc_values(rep.get("zip"), REFS)
     tr = calc_trace.trace(rep, REFS, prof, ASSUMP)
-    return _dl(reports.model_xlsx(rep, prof, ASSUMP, loc, trace=tr), XLSX, "Terra_Working_Model.xlsx")
+    snap = compare.snapshot(SCORED)
+    return _dl(xlmodel.firm_model(prof, ASSUMP, snap, dict(PORT_COMMON), rep, loc, tr, SCENARIOS),
+               XLSX, "Terra_Firm_Model.xlsx")
 
 @app.route("/api/report/source.xlsx")
 def rep_source_wb():
@@ -524,10 +526,40 @@ XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 def _dl(data, mime, name):
     return Response(data, mimetype=mime, headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
+def _portfolio_risk(n=60):
+    """Aggregate every risk_model flag across the top-N Tier-1 deals for the management report."""
+    t1 = SCORED[SCORED["tier"] == "Tier 1 - Strong"].sort_values("total_score", ascending=False).head(n)
+    results = [risk_model.assess(r, REFS, rate=float(ASSUMP["rate"]), ltv=float(ASSUMP["ltv"]), live_flood=False)
+               for r in t1.to_dict("records")]
+    import re as _re
+    sev_order = ["Critical", "High", "Medium", "Low", "Minor", "Info"]
+    sevc = {s: 0 for s in sev_order}; gradec = {}; agg = {}
+    for res in results:
+        gradec[res["grade"]] = gradec.get(res["grade"], 0) + 1
+        for f in res["risks"]:
+            sevc[f["severity"]] = sevc.get(f["severity"], 0) + 1
+            title = _re.sub(r"\s*\([^)]*\)", "", f["title"]).strip()  # collapse deal-specific numbers
+            key = (f["category"], title)
+            a = agg.setdefault(key, {"title": title, "severity": f["severity"],
+                "category": f["category"], "mitigation": f["mitigation"], "source": f["source"], "count": 0})
+            a["count"] += 1
+            if sev_order.index(f["severity"]) < sev_order.index(a["severity"]):
+                a["severity"] = f["severity"]  # keep the worst severity seen for the group
+    flags = sorted(agg.values(), key=lambda x: (sev_order.index(x["severity"]), -x["count"]))
+    needs = [{"category": f["category"], "title": f["title"], "mitigation": f["mitigation"]}
+             for f in flags if "needs" in f["source"]]
+    avg = round(sum(r["score"] for r in results) / len(results), 1) if results else 0
+    grade = ("A" if avg < 20 else "B" if avg < 38 else "C" if avg < 55 else "D" if avg < 72 else "F")
+    return {"n": len(results), "avg_score": avg, "grade": grade, "severity_counts": sevc,
+            "grade_dist": gradec, "flags": flags, "needs_report": needs}
+
 @app.route("/api/report/portfolio.<fmt>")
 def rep_portfolio(fmt):
     scen = request.args.get("scenario", "Base"); r = t_portfolio_dcf(scenario=scen)
-    if fmt == "pdf": return _dl(reports.portfolio_pdf(r, scen), "application/pdf", f"Terra_Portfolio_{scen}.pdf")
+    if fmt == "pdf":
+        payload = {"dcf": r, "summary": t_market_summary(), "risk": _portfolio_risk(),
+                   "scenario": scen, "project": projects.get_project(ACTIVE_PID).get("name", "Portfolio")}
+        return _dl(reports.management_pdf(payload), "application/pdf", f"Terra_Investment_Committee_{scen}.pdf")
     if fmt == "xlsx": return _dl(reports.portfolio_xlsx(r, scen), XLSX, f"Terra_Portfolio_{scen}.xlsx")
     return jsonify(error="bad format"), 400
 
@@ -544,6 +576,13 @@ def rep_property():
     uw = t_underwrite(p["avm"] * 0.9, p["market_rent"])
     return _dl(reports.property_pdf(p, uw), "application/pdf", "Terra_Property.pdf")
 
+import xlmodel
+def _prop_params(p):
+    """Single-asset DCF params from the property + the project's underwriting assumptions."""
+    return {**PORT_COMMON, "homes": 1, "price_home": float(p["avm"]) * 0.9,
+            "rent_home": float(p["market_rent"]) if p.get("market_rent") else 0.0,
+            "tax": ASSUMP["tax"], "ins_home": ASSUMP["ins"], "rehab": ASSUMP["rehab"]}
+
 @app.route("/api/report/model.xlsx")
 def rep_model():
     p = t_lookup_property(query=request.args.get("apn", ""))
@@ -551,8 +590,8 @@ def rep_model():
     prof = projects.get_project(ACTIVE_PID)["profile"]
     loc = calc_trace._loc_values(p.get("zip"), REFS)
     tr = calc_trace.trace(p, REFS, prof, ASSUMP)
-    fn = "Terra_Model_%s.xlsx" % str(p.get("apn", "property"))[:20]
-    return _dl(reports.model_xlsx(p, prof, ASSUMP, loc, trace=tr), XLSX, fn)
+    fn = "Terra_APN_Model_%s.xlsx" % str(p.get("apn", "property"))[:20]
+    return _dl(xlmodel.property_model(p, prof, ASSUMP, loc, tr, _prop_params(p), SCENARIOS), XLSX, fn)
 
 # ---------------- live for-sale listings (RentCast / pluggable) ----------------
 import listings

@@ -61,7 +61,7 @@ def _fema(lat, lon):
 
 
 def assess(prop: dict, refs=None, rate=0.07, dscr_min=1.20, ltv=0.75, opex_ratio=0.42,
-           portfolio_state_share=None):
+           portfolio_state_share=None, live_flood=True):
     """Assess one property. `prop` uses canonical scored columns."""
     R = []  # risk flags
     def flag(cat, title, sev, detail, evidence, mitigation, source="computed"):
@@ -79,7 +79,7 @@ def assess(prop: dict, refs=None, rate=0.07, dscr_min=1.20, ltv=0.75, opex_ratio
     lat, lon = prop.get("lat"), prop.get("lon")
 
     # ---- 1. FLOOD (live FEMA, else honest "unverified") ---------------------
-    zone, sfha, ok = _fema(lat, lon)
+    zone, sfha, ok = _fema(lat, lon) if live_flood else (None, None, False)
     if ok and sfha:
         flag("Climate / Flood", f"In FEMA Special Flood Hazard Area (Zone {zone})", "High",
              "Lender-mandated flood insurance; premiums volatile under Risk Rating 2.0 and can swing the pro-forma.",
