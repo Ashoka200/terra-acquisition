@@ -21,3 +21,7 @@ refresh.json
 _build_tmp/
 _dump/
 _test_*
+
+# never commit the in-app ATLAS key
+atlas_key.txt
+**/atlas_key.txt

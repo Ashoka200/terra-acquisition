@@ -15,6 +15,17 @@ import auth
 import projects, profiles
 
 DATA = os.environ.get("RE_DATA", os.path.join(os.path.dirname(__file__), "..", "data"))
+
+# ATLAS key can be set in-app (saved to the data volume) instead of a Railway variable.
+# Load it on boot so the AI brain turns on without a redeploy.
+ATLAS_KEY_FILE = os.path.join(DATA, "atlas_key.txt")
+if not os.environ.get("ANTHROPIC_API_KEY") and os.path.exists(ATLAS_KEY_FILE):
+    try:
+        _k = open(ATLAS_KEY_FILE).read().strip()
+        if _k: os.environ["ANTHROPIC_API_KEY"] = _k
+    except Exception:
+        pass
+
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-in-prod")
 
@@ -961,6 +972,52 @@ def health(): return jsonify(status="ok", rows=len(SCORED), model=assistant.MODE
 
 @app.route("/")
 def index(): return render_template("index.html")
+
+# ---------------- ATLAS API key — set in-app, no Railway variable needed ----------------
+def _admin_ok():
+    if not auth.enabled(): return True
+    return "admin" in (auth.current() or {}).get("caps", [])
+
+def _mask(k):
+    return (k[:8] + "…" + k[-4:]) if len(k) > 16 else ("set" if k else "")
+
+@app.route("/api/atlas/status")
+def atlas_status():
+    k = os.environ.get("ANTHROPIC_API_KEY", "")
+    src = "none"
+    if k: src = "saved" if os.path.exists(ATLAS_KEY_FILE) else "environment"
+    return jsonify(has_key=bool(k), source=src, masked=_mask(k),
+                   model=os.environ.get("ATLAS_MODEL", assistant.MODEL), can_edit=_admin_ok())
+
+@app.route("/api/atlas/key", methods=["POST"])
+def atlas_set_key():
+    if not _admin_ok(): return jsonify(error="admin only"), 403
+    b = request.get_json(force=True)
+    if b.get("clear"):
+        os.environ.pop("ANTHROPIC_API_KEY", None)
+        try: os.remove(ATLAS_KEY_FILE)
+        except Exception: pass
+        return jsonify(ok=True, has_key=False)
+    key = (b.get("key") or "").strip()
+    if not key.startswith("sk-ant-") or len(key) < 20:
+        return jsonify(ok=False, error="That doesn't look like an Anthropic key — it should start with 'sk-ant-'."), 400
+    prev = os.environ.get("ANTHROPIC_API_KEY")
+    os.environ["ANTHROPIC_API_KEY"] = key
+    # validate with a 1-token call so we never save a key Anthropic rejects
+    try:
+        import anthropic
+        anthropic.Anthropic().messages.create(model=os.environ.get("ATLAS_MODEL", assistant.MODEL),
+            max_tokens=1, messages=[{"role": "user", "content": "ping"}])
+    except Exception as e:
+        if prev: os.environ["ANTHROPIC_API_KEY"] = prev
+        else: os.environ.pop("ANTHROPIC_API_KEY", None)
+        return jsonify(ok=False, error="Anthropic rejected the key: " + str(e)[:160]), 400
+    try:
+        os.makedirs(DATA, exist_ok=True)
+        with open(ATLAS_KEY_FILE, "w") as fh: fh.write(key)
+    except Exception:
+        pass
+    return jsonify(ok=True, has_key=True, authenticated=True, masked=_mask(key))
 
 @app.route("/api/<tool>", methods=["POST"])
 def api(tool):

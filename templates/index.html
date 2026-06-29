@@ -98,6 +98,8 @@ body{margin:0;font-family:Inter,system-ui,sans-serif;color:var(--ink);background
 .barrow.clickable:hover{background:#f0faf5}
 /* keep the bottom-right map zoom control clear of the floating ATLAS button */
 #lmap .leaflet-bottom.leaflet-right{margin-bottom:100px}
+.akbox{padding:12px 16px;border-bottom:1px solid var(--line);background:#fafdfb}
+.akbox code{background:#eef1f6;padding:1px 4px;border-radius:4px;font-size:11px}
 .uwbook{margin-top:12px;border-top:1px solid var(--line2);padding-top:12px}
 .bkrow{display:flex;gap:10px;align-items:end;flex-wrap:wrap}
 .bkfile{padding:7px;border:1px dashed var(--line);border-radius:9px;background:#fafdfb;font-size:12px}
@@ -516,7 +518,17 @@ select.uin{text-align:left}
 <!-- copilot -->
 <button class="fab" onclick="toggleChat()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.7L18.5 9l-4.7 1.8L12 15l-1.8-4.2L5.5 9l4.7-1.3z"/></svg> ATLAS</button>
 <div class="copilot" id="copilot">
-  <div class="cph"><div class="av">A</div><div style="flex:1"><b>ATLAS</b> <span id="atlasMode" style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:6px;background:#eef1f6;color:#6b7689">offline</span><br><small>Acquisition copilot</small></div><span class="close" onclick="toggleChat()">✕</span></div>
+  <div class="cph"><div class="av">A</div><div style="flex:1"><b>ATLAS</b> <span id="atlasMode" style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:6px;background:#eef1f6;color:#6b7689">offline</span><br><small>Acquisition copilot</small></div>
+    <span class="close" title="Connect Anthropic key" onclick="toggleAtlasKey()" style="margin-right:4px">⚙</span><span class="close" onclick="toggleChat()">✕</span></div>
+  <div id="atlasKeyBox" class="akbox" style="display:none">
+    <div style="font-weight:700;font-size:12.5px;margin-bottom:4px">Connect Anthropic API key</div>
+    <div class="muted" style="font-size:11.5px;margin-bottom:8px">Paste your key (<code>sk-ant-…</code>) to turn on full conversational ATLAS. Saved to this server — no Railway variable needed. <span id="akStatus"></span></div>
+    <div style="display:flex;gap:6px"><input id="akInput" type="password" placeholder="sk-ant-..." style="flex:1;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:12px">
+      <button class="btn emer" style="padding:8px 12px" onclick="saveAtlasKey()">Save</button></div>
+    <div style="display:flex;gap:8px;margin-top:7px;align-items:center"><button class="btn ghost" style="padding:5px 10px;font-size:11px" onclick="clearAtlasKey()">Remove key</button>
+      <a href="https://console.anthropic.com/settings/keys" target="_blank" class="muted" style="font-size:11px">Get a key →</a></div>
+    <div id="akMsg" style="font-size:11.5px;margin-top:7px"></div>
+  </div>
   <div class="clog" id="clog"><div class="bub at"><b>Hi — I'm ATLAS.</b><br>I run the deterministic engine and explain the result. Try one:</div></div>
   <div class="chips">
     <span onclick="chip(this)">Top Tier-1 targets in GA under $250k</span>
@@ -1097,8 +1109,21 @@ function globalToMap(){const q=window.__gq||$('#gsearch').value.trim();$('#sres'
 document.addEventListener('click',e=>{if(!e.target.closest('.search'))$('#sres').style.display='none'});
 
 // ---------------- COPILOT ----------------
-function toggleChat(){$('#copilot').classList.toggle('on')}
+function toggleChat(){const o=$('#copilot');o.classList.toggle('on');if(o.classList.contains('on'))refreshAtlasStatus();}
 function chip(el){$('#c_in').value=el.textContent;sendChat()}
+function toggleAtlasKey(){const b=$('#atlasKeyBox');b.style.display=b.style.display==='none'?'block':'none';if(b.style.display==='block')refreshAtlasStatus();}
+async function refreshAtlasStatus(){let d;try{d=await get('/api/atlas/status');}catch(e){return}
+ const mb=$('#atlasMode');if(d.has_key){mb.textContent='AI';mb.style.background='#e7f7f0';mb.style.color='#0a7a55';}else{mb.textContent='offline';mb.style.background='#eef1f6';mb.style.color='#6b7689';}
+ const s=$('#akStatus');if(s)s.innerHTML=d.has_key?`<b style="color:#0a7a55">● connected</b> (${esc(d.masked)}, ${esc(d.source)})`:'<b style="color:#c0392b">● not connected</b>';
+ if(!d.can_edit){const inp=$('#akInput');if(inp){inp.disabled=true;$('#akMsg').innerHTML='<span class="muted">Admin only — sign in as an admin to set the key.</span>';}}}
+async function saveAtlasKey(){const k=$('#akInput').value.trim();if(!k){$('#akMsg').innerHTML='<span style="color:#c0392b">Paste a key first.</span>';return}
+ $('#akMsg').innerHTML='<span class="spin"></span> validating with Anthropic…';
+ let d;try{d=await post('/api/atlas/key',{key:k});}catch(e){d={ok:false,error:'request failed'}}
+ if(d.ok){$('#akInput').value='';$('#akMsg').innerHTML='<b style="color:#0a7a55">✓ Connected — ATLAS is now in AI mode.</b>';refreshAtlasStatus();}
+ else $('#akMsg').innerHTML='<span style="color:#c0392b">⚠ '+esc(d.error||'failed')+'</span>';}
+async function clearAtlasKey(){if(!confirm('Remove the saved Anthropic key? ATLAS returns to offline mode.'))return;
+ try{await post('/api/atlas/key',{clear:true});}catch(e){}
+ $('#akMsg').innerHTML='Key removed — ATLAS is back in offline mode.';refreshAtlasStatus();}
 let HIST=[];
 async function sendChat(){const t=$('#c_in').value.trim();if(!t)return;$('#c_in').value='';
  const log=$('#clog');log.insertAdjacentHTML('beforeend',`<div class="bub me">${esc(t)}</div>`);
