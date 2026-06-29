@@ -160,9 +160,9 @@ select option{background:#fff;color:#0b1320}
 .gchip{display:inline-flex;align-items:center;gap:5px;border:1px solid #dde3ec;background:#fff;border-radius:9px;padding:7px 12px;font-size:13px;font-weight:600;color:#0b1320;cursor:pointer;text-decoration:none}
 .gchip:hover{border-color:var(--emer);color:var(--emer-d);background:var(--emer-l)}
 /* drawer */
-.scrim{position:fixed;inset:0;background:rgba(11,19,32,.42);backdrop-filter:blur(2px);opacity:0;pointer-events:none;transition:.2s;z-index:60}
+.scrim{position:fixed;inset:0;background:rgba(11,19,32,.42);backdrop-filter:blur(2px);opacity:0;pointer-events:none;transition:.2s;z-index:1500}
 .scrim.on{opacity:1;pointer-events:auto}
-.drawer{position:fixed;top:0;right:0;height:100vh;width:440px;background:#fff;box-shadow:var(--shadow-lg);transform:translateX(100%);transition:.28s cubic-bezier(.4,0,.2,1);z-index:61;display:flex;flex-direction:column}
+.drawer{position:fixed;top:0;right:0;height:100vh;width:440px;background:#fff;box-shadow:var(--shadow-lg);transform:translateX(100%);transition:.28s cubic-bezier(.4,0,.2,1);z-index:1510;display:flex;flex-direction:column}
 .drawer.on{transform:none}
 .drawer .dh{padding:20px 22px;border-bottom:1px solid var(--line)}
 .drawer .db{padding:20px 22px;overflow:auto;flex:1}
@@ -286,6 +286,29 @@ select option{background:#fff;color:#0b1320}
 .mvrow .mva{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink2)}
 .mvrow .up{color:#0a7a55;font-weight:700;text-align:right}.mvrow .down{color:#c0392b;font-weight:700;text-align:right}
 .cmpbar{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:13px 16px;background:#fafbfc;border-top:1px solid var(--line2);flex-wrap:wrap}
+/* underwriting workbench */
+.uwgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;align-items:start}
+@media(max-width:1100px){.uwgrid{grid-template-columns:1fr}}
+.uwcol{padding:16px}
+.uwsh{font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#fff;background:#0b1320;border-radius:8px;padding:7px 11px;margin:-2px 0 12px}
+.uwsh.red{background:#b23b32}
+.uwsub{font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--faint);margin:14px 0 6px;border-top:1px solid var(--line2);padding-top:10px}
+.uwfacts>div{display:flex;justify-content:space-between;gap:10px;padding:6px 0;font-size:12.5px;border-bottom:1px solid #f1f4f8}
+.uwfacts>div span{color:var(--muted)}.uwfacts>div b{text-align:right}
+.uwf{margin-bottom:9px}.uwf label{display:block;font-size:11.5px;color:var(--ink2);font-weight:600;margin-bottom:3px}
+.uwf.hl{background:#fff7ed;border:1px solid #f3d9b5;border-radius:9px;padding:7px 9px;margin-bottom:9px}
+.uin{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:9px;font-size:13px;text-align:right;font-variant-numeric:tabular-nums}
+.uin:focus{outline:none;border-color:var(--emer);box-shadow:0 0 0 3px #0e9d6e22}
+select.uin{text-align:left}
+.uwh{font-size:10.5px;color:var(--faint)}
+.uwbtns{display:flex;gap:8px;margin-top:8px}.uwbtns .btn{flex:1;justify-content:center;font-size:12px;padding:8px}
+.uwli{display:flex;justify-content:space-between;gap:10px;padding:5px 2px;font-size:12.5px;border-bottom:1px solid #f1f4f8;font-variant-numeric:tabular-nums}
+.uwli.b{font-weight:700;color:var(--ink);background:#f7faf8;border-bottom:1px solid var(--line2)}
+.uwli span:last-child{text-align:right}
+.uwkm{display:flex;justify-content:space-between;align-items:center;padding:7px 2px;font-size:13px;border-bottom:1px solid #f1f4f8}
+.uwkm b{font-size:15px;font-variant-numeric:tabular-nums}.uwkm b.pos{color:var(--emer-d)}.uwkm b.neg{color:#c0392b}
+.uwimplied{display:flex;justify-content:space-between;align-items:center;background:#e7f7f0;border:1px solid #b6e3cd;border-radius:9px;padding:9px 11px;margin-bottom:10px}
+.uwimplied span{font-size:11px;font-weight:700;color:#0a7a55;text-transform:uppercase}.uwimplied b{font-size:18px;color:var(--emer-d)}
 .dbar{display:flex;gap:7px;margin-top:8px}.dbar input{flex:1;height:38px;border:1px solid var(--line);border-radius:9px;padding:0 11px;font-size:13px}
 .fbk{display:flex;gap:6px;margin-top:8px;align-items:center}
 .fbk button{background:#fff;border:1px solid var(--line);border-radius:8px;width:30px;height:28px;cursor:pointer;font-size:14px}
@@ -349,7 +372,7 @@ select option{background:#fff;color:#0b1320}
          <div class="mfilters">
            <h4>Filter targets</h4>
            <div class="fld" style="margin-bottom:9px"><label>Tier</label><select id="m_tier"><option>Tier 1 - Strong</option><option>Tier 2 - Moderate</option><option>Tier 3 - Watch</option></select></div>
-           <div class="fld" style="margin-bottom:9px"><label>State</label><input id="m_state" placeholder="all"></div>
+           <div class="fld" style="margin-bottom:9px"><label>State / city</label><input id="m_state" placeholder="e.g. GA, Georgia, or Atlanta"></div>
            <div class="fld" style="margin-bottom:9px"><label>Min gross yield</label><input id="m_yield" placeholder="e.g. 0.10"></div>
            <div class="fld" style="margin-bottom:11px"><label>Max AVM</label><input id="m_price" placeholder="e.g. 350000"></div>
            <button class="btn emer" style="width:100%;justify-content:center" onclick="loadMap()">Apply</button>
@@ -386,23 +409,21 @@ select option{background:#fff;color:#0b1320}
      </section>
      <!-- UNDERWRITING -->
      <section id="uw" class="view">
-       <h1 class="h1">Underwriting</h1><p class="sub">Two-way · price → returns, or a target return → the price you can pay.</p>
-       <div class="seg" style="margin-bottom:18px"><button class="on" id="seg_fwd" onclick="uwMode('fwd')">Forward</button><button id="seg_rev" onclick="uwMode('rev')">Reverse (goal-seek)</button></div>
-       <div class="grid k2">
-         <div class="card pad">
-           <div class="filters" style="margin:0">
-             <div class="fld" id="w_price"><label>Purchase price</label><input id="u_price" value="270000"></div>
-             <div class="fld" id="w_tgtm" style="display:none"><label>Target metric</label><select id="u_tgtm"><option value="cap">Going-in Cap</option><option value="coc">Cash-on-Cash</option><option value="dscr">DSCR</option></select></div>
-             <div class="fld" id="w_tgt" style="display:none"><label>Target value</label><input id="u_tgt" value="0.07"></div>
-             <div class="fld"><label>Monthly rent</label><input id="u_rent" value="2200"></div>
-             <div class="fld"><label>Rate</label><input id="u_rate" value="0.0725"></div>
-             <div class="fld"><label>LTV</label><input id="u_ltv" value="0.70"></div>
-             <div class="fld"><label>&nbsp;</label><button class="btn emer" onclick="runUW()">Run</button></div>
-           </div>
-           <p class="note" style="margin-top:14px">Defaults use the corrected per-state cost basis (blended tax, insurance, $1,200 capex).</p>
+       <h1 class="h1">Underwriting</h1><p class="sub">Institutional single-property underwriting — load a deal, tune every assumption, watch the cash flow recompute. Two-way: price → returns, or a target return → the price you can pay. Save per-property or as the portfolio default.</p>
+       <div class="card pad" style="margin-bottom:16px">
+         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+           <input id="uwq" placeholder="APN or address — pull a property from the universe" style="flex:1;min-width:260px;padding:11px 13px;border:1px solid var(--line);border-radius:10px" onkeydown="if(event.key==='Enter')loadUWProp()">
+           <button class="btn emer" onclick="loadUWProp()">Load property</button>
+           <div class="seg"><button class="on" id="seg_fwd" onclick="uwMode('fwd')">Forward</button><button id="seg_rev" onclick="uwMode('rev')">Reverse</button></div>
+           <span id="uwScope" class="pill" style="display:none"></span>
          </div>
-         <div id="uwResult" class="card pad"></div>
+         <div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap">
+           <span class="muted" style="font-size:12px">Underwriting book (summary + one sheet/page per property):</span>
+           <button class="btn ghost" style="padding:7px 12px;font-size:12px" onclick="dl('/api/report/underwriting_book.xlsx?limit=25')">⤓ Top-25 Excel</button>
+           <button class="btn ghost" style="padding:7px 12px;font-size:12px" onclick="dl('/api/report/underwriting_book.pdf?limit=25')">⤓ Top-25 PDF</button>
+         </div>
        </div>
+       <div id="uwBody"><div class="muted" style="padding:28px;text-align:center;border:1px dashed var(--line);border-radius:12px">Load a property above, or open one from the Map / Targets and click <b>“Open in underwriting”</b>.</div></div>
      </section>
      <!-- MODEL STUDIO -->
      <section id="studio" class="view">
@@ -688,7 +709,7 @@ async function openDrawer(apn){
      <button class="btn ghost" style="flex:1;justify-content:center" onclick="dl('/api/report/property.pdf?apn='+encodeURIComponent('${r.apn}'))">⤓ Property PDF</button>
      <button class="btn ghost" style="flex:1;justify-content:center" onclick="dl('/api/report/model.xlsx?apn='+encodeURIComponent('${r.apn}'))">⤓ Working model .xlsx</button>
    </div>
-   <button class="btn emer" style="width:100%;justify-content:center;margin-top:10px" onclick="toUW(${Math.round(r.avm*0.9)},${r.market_rent})">Open in underwriting →</button>
+   <button class="btn emer" style="width:100%;justify-content:center;margin-top:10px" onclick="toUWProp('${r.apn}')">Open in underwriting →</button>
    <div class="disc"><h3>💬 Team discussion</h3><div id="thread"></div>
      <div class="dbar"><input id="dmsg" placeholder="Add a note… @name to mention" onkeydown="if(event.key==='Enter')postThread()"><button class="btn emer" onclick="postThread()">Post</button></div>
    </div>
@@ -898,29 +919,95 @@ async function loadThread(){if(!DKEY)return;let msgs=[];try{msgs=await get('/api
  el.innerHTML=(msgs&&msgs.length)?msgs.map(m=>`<div class="dmsg"><span class="who">${esc(m.author)}</span><span class="tm">${m.ts}</span><br>${md(m.text).replace(/@([A-Za-z0-9_.@-]+)/g,'<span class="mention">@$1</span>')}</div>`).join(''):'<div class="muted" style="font-size:12px">No notes yet — start the discussion.</div>';}
 async function postThread(){const i=$('#dmsg');const t=i.value.trim();if(!t||!DKEY)return;i.value='';try{await post('/api/thread/post',{key:DKEY,text:t});}catch(e){}loadThread();}
 async function fb(btn,rating,ctx){btn.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('done'));btn.classList.add('done');try{await post('/api/feedback',{rating,context:ctx,comment:''});}catch(e){}const s=btn.parentElement.querySelector('span');if(s)s.textContent='Thanks — logged.';}
-function toUW(price,rent){closeDrawer();$$('#nav a').forEach(x=>x.classList.remove('on'));document.querySelector('#nav a[data-v=uw]').classList.add('on');
- $$('.view').forEach(x=>x.classList.remove('on'));$('#uw').classList.add('on');uwMode('fwd');$('#u_price').value=price;$('#u_rent').value=rent;runUW();}
+function toUWProp(apn){closeDrawer();$$('#nav a').forEach(x=>x.classList.remove('on'));document.querySelector('#nav a[data-v=uw]').classList.add('on');
+ $$('.view').forEach(x=>x.classList.remove('on'));$('#uw').classList.add('on');$('#uwq').value=apn;loadUWProp();}
 
-// ---------------- UNDERWRITING ----------------
-let UMODE='fwd';
-function uwMode(m){UMODE=m;$('#seg_fwd').classList.toggle('on',m==='fwd');$('#seg_rev').classList.toggle('on',m==='rev');
- $('#w_price').style.display=m==='fwd'?'':'none';$('#w_tgtm').style.display=m==='rev'?'':'none';$('#w_tgt').style.display=m==='rev'?'':'none';}
-async function runUW(){
- const base={monthly_rent:+$('#u_rent').value,rate:+$('#u_rate').value,ltv:+$('#u_ltv').value};
- if(UMODE==='fwd'){const r=await post('/api/underwrite',{price:+$('#u_price').value,...base});
-  $('#uwResult').innerHTML=`<div class="grid k2"><div class="metric"><div class="l">Going-in cap</div><div class="v">${pct(r.cap_rate,2)}</div></div>
-   <div class="metric"><div class="l">Cash-on-cash</div><div class="v">${pct(r.coc,2)}</div></div>
-   <div class="metric"><div class="l">DSCR</div><div class="v">${f(r.dscr,2)}</div></div>
-   <div class="metric"><div class="l">Monthly cash flow</div><div class="v">$${f(r.monthly_cf)}</div></div></div>
-   <div class="note" style="margin-top:14px">NOI <b>$${f(r.noi)}</b> · debt service $${f(r.debt_service)} · all-in $${f(r.all_in)} · cash in $${f(r.cash_invested)}</div>`;}
- else{const r=await post('/api/reverse_solve',{target_metric:$('#u_tgtm').value,target:+$('#u_tgt').value,...base});const v=r.verify;
-  $('#uwResult').innerHTML=`<div class="l muted" style="font-size:12px;font-weight:600;text-transform:uppercase">Implied purchase price</div>
-   <div class="res-big" style="color:var(--emer-d)">$${f(r.implied_price)}</div>
-   <div class="note" style="margin:14px 0 6px">Verify at that price:</div>
-   <div class="grid k3"><div class="metric"><div class="l">Cap</div><div class="v">${pct(v.cap_rate,2)}</div></div>
-    <div class="metric"><div class="l">CoC</div><div class="v">${pct(v.coc,2)}</div></div>
-    <div class="metric"><div class="l">DSCR</div><div class="v">${f(v.dscr,2)}</div></div></div>`;}
+// ---------------- UNDERWRITING WORKBENCH ----------------
+let UMODE='fwd', UWPROP=null;
+const AFIELDS=[['price','Purchase price','money','= AVM × 90% by default'],['rehab','Rehab budget','money',''],
+ ['closing','Closing costs (% price)','pct',''],['rent','Monthly rent','money','= approved max rent'],
+ ['vacancy','Vacancy','pct',''],['pm','Property mgmt (% EGI)','pct',''],['maint','Maintenance (% rent)','pct',''],
+ ['tax','Property tax (% price/yr)','pct',''],['ins','Insurance ($/yr)','money',''],['hoa','HOA ($/yr)','money',''],['other','Other opex ($/yr)','money','']];
+const FFIELDS=[['ltv','LTV','pct',''],['rate','Interest rate','pct',''],['amort','Amortization (yrs)','num',''],['points','Loan points','pct','']];
+function uwMode(m){UMODE=m;$('#seg_fwd').classList.toggle('on',m==='fwd');$('#seg_rev').classList.toggle('on',m==='rev');if(UWPROP)renderUW();}
+async function loadUWProp(){const q=$('#uwq').value.trim();if(!q)return;
+ $('#uwBody').innerHTML='<div class="muted" style="padding:24px;text-align:center"><span class="spin"></span> loading property…</div>';
+ let d;try{d=await post('/api/uw/property',{query:q});}catch(e){d=null}
+ if(!d||!d.found){$('#uwBody').innerHTML='<div class="muted" style="padding:24px">Property not found. Try an APN or a distinct address fragment.</div>';return}
+ UWPROP=d;$('#uwq').value=d.property.apn;
+ $('#uwScope').style.display='';$('#uwScope').className='pill '+(d.has_override?'b-t1':'b-nm');
+ $('#uwScope').textContent=d.has_override?'saved override for this property':'portfolio defaults';
+ renderUW();}
+function uwVal(k){const el=document.getElementById('u_'+k);return el?(+el.value||0):0;}
+function uwInputs(){const o={};AFIELDS.concat(FFIELDS).forEach(([k])=>o[k]=uwVal(k));return o;}
+function renderUW(){const p=UWPROP.property,a=UWPROP.assumptions;
+ const v=Object.assign({price:UWPROP.price,rent:UWPROP.rent},a);
+ const field=([k,lbl,fmt,hint])=>`<div class="uwf"><label>${lbl}</label><input class="uin" id="u_${k}" value="${v[k]!=null?v[k]:''}" oninput="computeUW()">${hint?`<span class="uwh">${hint}</span>`:''}</div>`;
+ let h=`<div class="uwgrid">
+   <div class="card pad uwcol"><div class="uwsh">Property</div>
+     <div class="uwfacts">
+       <div><span>Address</span><b>${esc(p.address||'')}</b></div>
+       <div><span>City / State</span><b>${esc(p.city||'')}, ${esc(p.state||'')} ${esc(p.zip||'')}</b></div>
+       <div><span>APN</span><b>${esc(p.apn||'')}</b></div>
+       <div><span>Year built / Sqft</span><b>${p.yearbuilt} · ${f(p.sqft)}</b></div>
+       <div><span>Est. beds</span><b>${p.beds}</b></div>
+       <div><span>AVM value</span><b>$${f(p.avm)}</b></div>
+       <div><span>Approved max rent</span><b>$${f(p.market_rent)}</b></div>
+       <div><span>Tier / Score</span><b><span class="badge ${tierBadge(p.tier)}">${p.tier}</span> ${f(p.total_score,1)}</b></div>
+       <div><span>Corporate owner</span><b>${p.corp==='Y'?'Yes':'No'}</b></div>
+     </div>
+     <div class="uwbtns">
+       <button class="btn ghost" onclick="dl('/api/report/property.pdf?apn='+encodeURIComponent('${p.apn}'))">⤓ Analysis PDF</button>
+       <button class="btn ghost" onclick="dl('/api/report/model.xlsx?apn='+encodeURIComponent('${p.apn}'))">⤓ Excel model</button>
+     </div>
+   </div>
+   <div class="card pad uwcol"><div class="uwsh">Acquisition &amp; financing assumptions</div>
+     ${UMODE==='rev'?`<div class="uwf hl"><label>Target metric</label><select class="uin" id="u_tgtm" onchange="computeUW()"><option value="cap">Going-in Cap</option><option value="coc">Cash-on-Cash</option><option value="dscr">DSCR</option></select></div>
+       <div class="uwf hl"><label>Target value (e.g. 0.07 / 1.25)</label><input class="uin" id="u_tgt" value="0.07" oninput="computeUW()"></div>`:''}
+     ${AFIELDS.filter(f=>!(UMODE==='rev'&&f[0]==='price')).map(field).join('')}
+     <div class="uwsub">Financing</div>
+     ${FFIELDS.map(field).join('')}
+     <div class="uwbtns" style="margin-top:12px">
+       <button class="btn emer" onclick="saveUW('property')">Save for this property</button>
+       <button class="btn ghost" onclick="saveUW('portfolio')">Save as portfolio default</button>
+     </div>
+     <div class="uwbtns"><button class="btn ghost" onclick="resetUW()">Reset to defaults</button></div>
+   </div>
+   <div class="card pad uwcol" id="uwResult"></div>
+ </div>`;
+ $('#uwBody').innerHTML=h;computeUW();}
+async function computeUW(){if(!UWPROP)return;const o=uwInputs();const R=$('#uwResult');
+ const over={closing:o.closing,rehab:o.rehab,vacancy:o.vacancy,pm:o.pm,maint:o.maint,tax:o.tax,ins:o.ins,hoa:o.hoa,other:o.other,ltv:o.ltv,rate:o.rate,amort:o.amort,points:o.points};
+ let uw,price=o.price,rent=o.rent,implied=null;
+ try{
+   if(UMODE==='rev'){const tm=$('#u_tgtm').value,tg=+$('#u_tgt').value;
+     const r=await post('/api/reverse_solve',{target_metric:tm,target:tg,monthly_rent:rent,...over});
+     implied=r.implied_price;price=implied;uw=r.verify;}
+   else{uw=await post('/api/underwrite',{price,monthly_rent:rent,...over});}
+ }catch(e){R.innerHTML='<div class="muted">Compute failed.</div>';return}
+ const gsr=rent*12,vac=gsr*o.vacancy,egi=gsr-vac,pmf=egi*o.pm,mnt=gsr*o.maint,txf=price*o.tax,opex=pmf+mnt+txf+o.ins+o.hoa+o.other;
+ const li=(l,val,neg,bold)=>`<div class="uwli ${bold?'b':''}"><span>${l}</span><span>${neg?'('+f(Math.abs(val))+')':'$'+f(val)}</span></div>`;
+ const km=(l,val,cls)=>`<div class="uwkm"><span>${l}</span><b class="${cls||''}">${val}</b></div>`;
+ R.innerHTML=`<div class="uwsh red">Returns &amp; cash flow</div>
+   ${implied!=null?`<div class="uwimplied"><span>Implied purchase price (${$('#u_tgtm').value.toUpperCase()} target)</span><b>$${f(implied)}</b></div>`:''}
+   ${li('Gross scheduled rent',gsr)}${li('Vacancy loss',vac,true)}${li('Effective gross income',egi,false,true)}
+   ${li('Property management',pmf,true)}${li('Maintenance',mnt,true)}${li('Property tax',txf,true)}${li('Insurance',o.ins,true)}${li('HOA',o.hoa,true)}${li('Other opex',o.other,true)}
+   ${li('Total operating expenses',opex,true,true)}${li('Net operating income',uw.noi,false,true)}
+   ${li('Annual debt service',uw.debt_service,true)}${li('Cash flow before tax',uw.cash_flow,false,true)}
+   <div class="uwsh red" style="margin-top:14px">Key metrics</div>
+   ${km('Going-in cap rate',pct(uw.cap_rate,1),uw.cap_rate>=0.06?'pos':'')}
+   ${km('Gross yield (rent / all-in)',pct(uw.gross_yield,1))}
+   ${km('Cash-on-cash return',pct(uw.coc,1),uw.coc>=0.05?'pos':uw.coc<0?'neg':'')}
+   ${km('DSCR',f(uw.dscr,2)+'x',uw.dscr>=1.25?'pos':uw.dscr<1.1?'neg':'')}
+   ${km('Monthly cash flow','$'+f(uw.monthly_cf),uw.monthly_cf>=0?'pos':'neg')}
+   ${km('All-in / Cash invested','$'+f(uw.all_in)+' / $'+f(uw.cash_invested))}`;}
+async function saveUW(scope){if(!UWPROP)return;const o=uwInputs();
+ const r=await post('/api/uw/save',{apn:UWPROP.property.apn,scope,assumptions:o});
+ if(r.ok){$('#uwScope').className='pill b-t1';$('#uwScope').style.display='';
+   $('#uwScope').textContent=scope==='portfolio'?'saved as portfolio default':'saved override for this property';
+   if(scope==='property')UWPROP.has_override=true;}
 }
+async function resetUW(){if(!UWPROP)return;await post('/api/uw/clear',{apn:UWPROP.property.apn});loadUWProp();}
 
 // ---------------- PORTFOLIO ----------------
 function setScen(s,btn){SCEN=s;$$('#scenSeg button').forEach(b=>b.classList.remove('on'));btn.classList.add('on');loadPort()}

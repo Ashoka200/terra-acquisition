@@ -77,6 +77,11 @@ print("  loaded", len(SCORED), "rows · active project:", ACTIVE_PID)
 ASSUMP = dict(closing=0.03, rehab=15000, vacancy=0.05, pm=0.08, maint=0.05,
               tax=FX["blended_tax_pct"], ins=int(FX["blended_insurance"]), hoa=0,
               other=300, ltv=0.70, rate=0.0725, amort=30, points=0.01)
+# per-APN underwriting overrides (persisted on the active project)
+UW_OVERRIDES = (projects.get_project(ACTIVE_PID) or {}).get("uw_overrides", {})
+def _eff_assump(apn):
+    """Effective assumptions for a property: portfolio defaults + any saved per-APN override."""
+    return _merge_assump(ASSUMP, UW_OVERRIDES.get(str(apn), {}))
 
 PORT_COMMON = dict(homes=100, acq=0.02, rehab=5000, rent_growth=0.03, exp_growth=0.025,
                    vacancy=0.05, pm=0.08, rm=0.05, other_home=300, hoa_home=0,
@@ -87,6 +92,49 @@ PORT_COMMON = dict(homes=100, acq=0.02, rehab=5000, rent_growth=0.03, exp_growth
                    ins_home=int(FX["blended_insurance"]), capex_home=FX["capex_per_home"])
 
 # ---------------- engine tools (also the chatbot's tools) ----------------
+import re as _re
+STATE_CODES = {"AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY",
+    "LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK",
+    "OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY","DC"}
+STATE_NAMES = {"alabama":"AL","alaska":"AK","arizona":"AZ","arkansas":"AR","california":"CA","colorado":"CO",
+    "connecticut":"CT","delaware":"DE","florida":"FL","georgia":"GA","hawaii":"HI","idaho":"ID","illinois":"IL",
+    "indiana":"IN","iowa":"IA","kansas":"KS","kentucky":"KY","louisiana":"LA","maine":"ME","maryland":"MD",
+    "massachusetts":"MA","michigan":"MI","minnesota":"MN","mississippi":"MS","missouri":"MO","montana":"MT",
+    "nebraska":"NE","nevada":"NV","new hampshire":"NH","new jersey":"NJ","new mexico":"NM","new york":"NY",
+    "north carolina":"NC","north dakota":"ND","ohio":"OH","oklahoma":"OK","oregon":"OR","pennsylvania":"PA",
+    "rhode island":"RI","south carolina":"SC","south dakota":"SD","tennessee":"TN","texas":"TX","utah":"UT",
+    "vermont":"VT","virginia":"VA","washington":"WA","west virginia":"WV","wisconsin":"WI","wyoming":"WY"}
+
+# major metro / city names → state (so "Atlanta" resolves to GA even when the city
+# field holds suburb names). Covers the Sun-Belt book; extend as needed.
+METRO_STATE = {"atlanta":"GA","dallas":"TX","fort worth":"TX","houston":"TX","san antonio":"TX",
+    "austin":"TX","el paso":"TX","charlotte":"NC","raleigh":"NC","greensboro":"NC","memphis":"TN",
+    "nashville":"TN","knoxville":"TN","chattanooga":"TN","phoenix":"AZ","tucson":"AZ","mesa":"AZ",
+    "tampa":"FL","orlando":"FL","jacksonville":"FL","miami":"FL","fort lauderdale":"FL","las vegas":"NV",
+    "reno":"NV","birmingham":"AL","montgomery":"AL","huntsville":"AL","columbia":"SC","charleston":"SC",
+    "savannah":"GA","augusta":"GA","macon":"GA"}
+
+def _loc_match(q, loc):
+    """Filter by a free-text location: 2-letter state code, full state name, metro/city name."""
+    if not loc: return q
+    s = str(loc).strip()
+    if not s: return q
+    su, sl = s.upper(), s.lower()
+    states = q["state"].astype(str).str.upper()
+    if len(su) == 2 and su in STATE_CODES:
+        return q[states == su]
+    if sl in STATE_NAMES:
+        return q[states == STATE_NAMES[sl]]
+    # city contains the term?
+    cm = q["city"].astype(str).str.upper().str.contains(_re.escape(su), na=False, regex=True)
+    hit = q[cm]
+    # metro alias → also pull the whole state (union with any literal city hits)
+    if sl in METRO_STATE:
+        return q[(states == METRO_STATE[sl]) | cm]
+    if len(hit):
+        return hit
+    return q[states == su]  # last resort: maybe a loosely-typed code
+
 def t_market_summary():
     vc = SCORED["tier"].value_counts()
     t1 = SCORED[SCORED["tier"] == "Tier 1 - Strong"]
@@ -101,7 +149,7 @@ def t_market_summary():
 def t_search_targets(tier="Tier 1 - Strong", state=None, min_yield=None,
                      max_price=None, corp_only=False, limit=25):
     q = SCORED[SCORED["tier"] == tier] if tier else SCORED
-    if state: q = q[q["state"] == state.upper()]
+    if state: q = _loc_match(q, state)
     if min_yield is not None: q = q[q["gross_yield"] >= min_yield]
     if max_price is not None: q = q[q["avm"] <= max_price]
     if corp_only: q = q[q["corp"] == "Y"]
@@ -145,18 +193,62 @@ def api_risk():
     out["address"] = r.get("address"); out["apn"] = r.get("apn")
     return jsonify(out)
 
-def t_underwrite(price, monthly_rent, rate=None, ltv=None):
-    a = dict(ASSUMP);
-    if rate is not None: a["rate"] = rate
-    if ltv is not None: a["ltv"] = ltv
+_AKEYS = ("closing", "rehab", "vacancy", "pm", "maint", "tax", "ins", "hoa", "other", "ltv", "rate", "amort", "points")
+def _merge_assump(base, over):
+    a = dict(base)
+    for k in _AKEYS:
+        if over.get(k) is not None:
+            try: a[k] = float(over[k])
+            except (TypeError, ValueError): pass
+    return a
+
+def t_underwrite(price, monthly_rent, rate=None, ltv=None, **over):
+    a = _merge_assump(ASSUMP, {**over, "rate": rate, "ltv": ltv})
     return U.underwrite(price, monthly_rent, a)
 
-def t_reverse_solve(target_metric, target, monthly_rent, rate=None, ltv=None):
-    a = dict(ASSUMP)
-    if rate is not None: a["rate"] = rate
-    if ltv is not None: a["ltv"] = ltv
+def t_reverse_solve(target_metric, target, monthly_rent, rate=None, ltv=None, **over):
+    a = _merge_assump(ASSUMP, {**over, "rate": rate, "ltv": ltv})
     P = U.reverse_price(target_metric, target, a, monthly_rent)
-    return {"implied_price": round(P, 0), "verify": U.underwrite(P, monthly_rent, a)}
+    return {"implied_price": round(P, 0), "verify": U.underwrite(P, monthly_rent, a), "assumptions": a}
+
+_OVKEYS = _AKEYS + ("price", "rent")
+@app.route("/api/uw/property", methods=["POST"])
+def api_uw_property():
+    """Load a property + its effective underwriting inputs (saved override else defaults)."""
+    b = request.get_json(force=True)
+    r = t_lookup_property(b.get("query") or b.get("apn", ""))
+    if not r.get("found"): return jsonify(found=False)
+    apn = str(r["apn"]); ov = UW_OVERRIDES.get(apn, {})
+    price = ov.get("price", round(float(r["avm"]) * 0.9)) if r.get("avm") else ov.get("price", 0)
+    rent = ov.get("rent", r.get("market_rent") or 0)
+    return jsonify(found=True, property=r, price=price, rent=rent,
+                   assumptions=_eff_assump(apn), has_override=apn in UW_OVERRIDES, defaults=dict(ASSUMP))
+
+@app.route("/api/uw/save", methods=["POST"])
+def api_uw_save():
+    b = request.get_json(force=True); ov = b.get("assumptions", {}) or {}
+    clean = {}
+    for k in _OVKEYS:
+        if ov.get(k) is not None:
+            try: clean[k] = float(ov[k])
+            except (TypeError, ValueError): pass
+    if b.get("scope") == "portfolio":
+        for k in _AKEYS:
+            if k in clean: ASSUMP[k] = clean[k]
+        d = projects.get_project(ACTIVE_PID); d["assumptions_uw"] = dict(ASSUMP); projects.save_project(d)
+        return jsonify(ok=True, scope="portfolio", assumptions=dict(ASSUMP))
+    apn = str(b.get("apn", ""))
+    if not apn: return jsonify(error="no apn"), 400
+    UW_OVERRIDES[apn] = clean
+    d = projects.get_project(ACTIVE_PID); d["uw_overrides"] = UW_OVERRIDES; projects.save_project(d)
+    return jsonify(ok=True, scope="property", apn=apn)
+
+@app.route("/api/uw/clear", methods=["POST"])
+def api_uw_clear():
+    apn = str(request.get_json(force=True).get("apn", ""))
+    UW_OVERRIDES.pop(apn, None)
+    d = projects.get_project(ACTIVE_PID); d["uw_overrides"] = UW_OVERRIDES; projects.save_project(d)
+    return jsonify(ok=True, cleared=apn)
 
 SCENARIOS = {  # Base / Downside / Upside drivers (from the SFR model)
     "Base":     dict(rent_growth=0.03,  exp_growth=0.025, vacancy=0.05, rate=0.0725, exit_cap=0.065),
@@ -177,7 +269,7 @@ def t_portfolio_dcf(scenario="Base", homes=None, rate=None, exit_cap=None, rent_
 
 def t_map_points(tier="Tier 1 - Strong", state=None, min_yield=None, max_price=None, limit=8000):
     q = SCORED[(SCORED["tier"] == tier) & SCORED["lat"].notna()] if tier else SCORED[SCORED["lat"].notna()]
-    if state: q = q[q["state"] == state.upper()]
+    if state: q = _loc_match(q, state)
     if min_yield is not None: q = q[q["gross_yield"] >= min_yield]
     if max_price is not None: q = q[q["avm"] <= max_price]
     q = q.sort_values("total_score", ascending=False).head(int(limit))
@@ -573,15 +665,39 @@ def rep_targets():
 def rep_property():
     p = t_lookup_property(query=request.args.get("apn", ""))
     if not p.get("found"): return jsonify(error="not found"), 404
-    uw = t_underwrite(p["avm"] * 0.9, p["market_rent"])
-    return _dl(reports.property_pdf(p, uw), "application/pdf", "Terra_Property.pdf")
+    apn = str(p["apn"]); ov = UW_OVERRIDES.get(apn, {}); a = _eff_assump(apn)
+    price = ov.get("price", round(float(p["avm"]) * 0.9)); rent = ov.get("rent", p.get("market_rent") or 0)
+    uw = U.underwrite(price, rent, a)
+    rev = {tm: U.reverse_price(tm, tgt, a, rent) for tm, tgt in (("cap", 0.07), ("coc", 0.08), ("dscr", 1.25))}
+    risk = risk_model.assess(p, REFS, rate=a["rate"], ltv=a["ltv"])
+    return _dl(reports.property_pdf(p, uw, price=price, rent=rent, a=a, rev=rev, risk=risk),
+               "application/pdf", "Terra_Property_%s.pdf" % apn[:18])
 
 import xlmodel
 def _prop_params(p):
-    """Single-asset DCF params from the property + the project's underwriting assumptions."""
-    return {**PORT_COMMON, "homes": 1, "price_home": float(p["avm"]) * 0.9,
-            "rent_home": float(p["market_rent"]) if p.get("market_rent") else 0.0,
-            "tax": ASSUMP["tax"], "ins_home": ASSUMP["ins"], "rehab": ASSUMP["rehab"]}
+    """Single-asset DCF params from the property + its effective (saved/override) assumptions."""
+    apn = str(p.get("apn", "")); ov = UW_OVERRIDES.get(apn, {}); a = _eff_assump(apn)
+    price = ov.get("price", float(p["avm"]) * 0.9) if p.get("avm") else ov.get("price", 0)
+    rent = ov.get("rent", float(p["market_rent"]) if p.get("market_rent") else 0.0)
+    return {**PORT_COMMON, "homes": 1, "price_home": price, "rent_home": rent,
+            "tax": a["tax"], "ins_home": a["ins"], "rehab": a["rehab"], "acq": a.get("closing", PORT_COMMON["acq"]),
+            "ltv": a["ltv"], "rate": a["rate"], "amort": a["amort"], "pm": a["pm"], "rm": a["maint"],
+            "vacancy": a["vacancy"], "other_home": a["other"], "hoa_home": a["hoa"]}
+
+@app.route("/api/report/underwriting_book.<fmt>")
+def rep_uw_book(fmt):
+    tier = request.args.get("tier", "Tier 1 - Strong"); limit = min(int(request.args.get("limit", 25)), 60)
+    rows = t_search_targets(tier=tier, state=request.args.get("state"), limit=limit)["rows"]
+    deals = []
+    for p in rows:
+        apn = str(p["apn"]); ov = UW_OVERRIDES.get(apn, {}); a = _eff_assump(apn)
+        price = ov.get("price", round(float(p["avm"]) * 0.9)); rent = ov.get("rent", p.get("market_rent") or 0)
+        uw = U.underwrite(price, rent, a)
+        deals.append({"p": p, "price": price, "rent": rent, "a": a, "uw": uw})
+    if not deals: return jsonify(error="no properties"), 404
+    if fmt == "xlsx": return _dl(reports.underwriting_book_xlsx(deals), XLSX, "Terra_Underwriting_Book.xlsx")
+    if fmt == "pdf": return _dl(reports.underwriting_book_pdf(deals), "application/pdf", "Terra_Underwriting_Book.pdf")
+    return jsonify(error="bad format"), 400
 
 @app.route("/api/report/model.xlsx")
 def rep_model():

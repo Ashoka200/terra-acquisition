@@ -7,7 +7,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Flowable)
+from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Flowable, PageBreak)
 import xlsxwriter
 
 INK = colors.HexColor("#0b1320"); EMER = colors.HexColor("#0e9d6e")
@@ -224,25 +224,168 @@ def management_pdf(pl):
     hf = HeaderFooter("Investment Committee Report", scen + " scenario")
     doc.build(flow, onFirstPage=hf, onLaterPages=hf); buf.seek(0); return buf.read()
 
-def property_pdf(p, uw):
-    buf, doc = _doc("Property Report", p.get("tier", ""))
-    flow = [Paragraph(p["address"], _S["h1"]),
-            Paragraph(f"{p['city']}, {p['state']} {p['zip']} · APN {p['apn']} · <b>{p['tier']}</b> (score {p['total_score']:.0f})", _S["sub"]),
-            kpi_grid([("AVM", _money(p["avm"])), ("Market Rent", _money(p["market_rent"])),
-                      ("Gross Yield", _pct(p["gross_yield"])), ("Total Score", f"{p['total_score']:.0f}"),
-                      ("Beds", f"{p['beds']}"), ("Sqft", f"{p['sqft']:,.0f}"),
-                      ("Year Built", f"{p['yearbuilt']}"), ("Tenure (yrs)", f"{p['tenure']:.1f}")]),
-            Paragraph("Underwrite @ 90% of AVM", _S["h2"]),
-            data_table(["Metric", "Value"],
-                [["Going-in Cap", _pct(uw["cap_rate"],2)], ["Cash-on-Cash", _pct(uw["coc"],2)],
-                 ["DSCR", f"{uw['dscr']:.2f}"], ["NOI", _money(uw["noi"])],
-                 ["Annual debt service", _money(uw["debt_service"])], ["Monthly cash flow", _money(uw["monthly_cf"])],
-                 ["All-in basis", _money(uw["all_in"])], ["Cash invested", _money(uw["cash_invested"])]],
-                aligns=["LEFT","RIGHT"], widths=[4.0*inch, 3.3*inch]),
-            Spacer(1, 10),
-            Paragraph("<font size=8 color='#6b7689'>Basis &amp; caveats: yield computed at 90% of AVM with the corrected per-state cost basis (blended tax/insurance, $1,200 capex). Beds are sqft-estimated unless an actual count was supplied.</font>", _S["p"])]
-    hf = HeaderFooter("Property Report", p.get("tier", ""))
+def property_pdf(p, uw, price=None, rent=None, a=None, rev=None, risk=None):
+    """Institutional 2-page single-property report (SS#1 layout) — facts, assumptions,
+    full cash-flow line items, key metrics, reverse goal-seek, risk, and a written analysis."""
+    a = a or {}; price = price if price is not None else round(p["avm"] * 0.9)
+    rent = rent if rent is not None else p.get("market_rent", 0)
+    gsr = rent * 12; vac = gsr * a.get("vacancy", 0.05); egi = gsr - vac
+    pmf = egi * a.get("pm", 0.08); mnt = gsr * a.get("maint", 0.05); txf = price * a.get("tax", 0.011)
+    insf = a.get("ins", 1400); hoaf = a.get("hoa", 0); othf = a.get("other", 300)
+    buf, doc = _doc("Property Underwriting", p.get("tier", ""))
+    flow = [Paragraph("Single-Property Underwriting", _S["h1"]),
+            Paragraph(f"{p['address']} · {p['city']}, {p['state']} {p['zip']} · APN {p['apn']} · <b>{p['tier']}</b> (score {p['total_score']:.0f})", _S["sub"]),
+            kpi_grid([("Going-in Cap", _pct(uw["cap_rate"],2)), ("Cash-on-Cash", _pct(uw["coc"],2)),
+                      ("DSCR", f"{uw['dscr']:.2f}"), ("Monthly Cash Flow", _money(uw["monthly_cf"])),
+                      ("Gross Yield", _pct(uw["gross_yield"],2)), ("Net Operating Income", _money(uw["noi"]))]),
+            Spacer(1, 6),
+            Paragraph("Property", _S["h2"]),
+            data_table(["Attribute", "Value"],
+                [["Year built", f"{p['yearbuilt']}"], ["Living area (sqft)", f"{p['sqft']:,.0f}"],
+                 ["Est. beds", f"{p['beds']}"], ["AVM value", _money(p["avm"])],
+                 ["Approved max rent", _money(p["market_rent"])], ["Tenure (yrs)", f"{p.get('tenure',0):.1f}"],
+                 ["Corporate owner", "Yes" if str(p.get("corp"))=="Y" else "No"]],
+                aligns=["LEFT","RIGHT"], widths=[3.6*inch, 3.7*inch])]
+    # assumptions + cash flow side by side via two tables
+    flow.append(Paragraph("Acquisition &amp; financing assumptions", _S["h2"]))
+    flow.append(data_table(["Assumption", "Value"],
+        [["Purchase price", _money(price)], ["Rehab budget", _money(a.get("rehab",15000))],
+         ["Closing costs", _pct(a.get("closing",0.03),1)], ["Monthly rent", _money(rent)],
+         ["Vacancy", _pct(a.get("vacancy",0.05),1)], ["Property mgmt (% EGI)", _pct(a.get("pm",0.08),1)],
+         ["Maintenance (% rent)", _pct(a.get("maint",0.05),1)], ["Property tax (% price/yr)", _pct(a.get("tax",0.011),2)],
+         ["Insurance ($/yr)", _money(insf)], ["Other opex ($/yr)", _money(othf)],
+         ["LTV", _pct(a.get("ltv",0.70),1)], ["Interest rate", _pct(a.get("rate",0.0725),2)],
+         ["Amortization (yrs)", f"{int(a.get('amort',30))}"], ["Loan points", _pct(a.get("points",0.01),1)]],
+        aligns=["LEFT","RIGHT"], widths=[3.6*inch, 3.7*inch]))
+    flow.append(Paragraph("Returns &amp; cash flow", _S["h2"]))
+    flow.append(data_table(["Line item", "Amount"],
+        [["Gross scheduled rent", _money(gsr)], ["Vacancy loss", "(" + _money(vac) + ")"],
+         ["Effective gross income", _money(egi)], ["Property management", "(" + _money(pmf) + ")"],
+         ["Maintenance", "(" + _money(mnt) + ")"], ["Property tax", "(" + _money(txf) + ")"],
+         ["Insurance", "(" + _money(insf) + ")"], ["Other opex", "(" + _money(hoaf+othf) + ")"],
+         ["Net operating income", _money(uw["noi"])], ["Annual debt service", "(" + _money(uw["debt_service"]) + ")"],
+         ["Cash flow before tax", _money(uw["cash_flow"])],
+         ["All-in basis / Cash invested", _money(uw["all_in"]) + " / " + _money(uw["cash_invested"])]],
+        aligns=["LEFT","RIGHT"], widths=[3.6*inch, 3.7*inch]))
+    # ---- PAGE 2 ----
+    flow.append(PageBreak())
+    if rev:
+        flow.append(Paragraph("Reverse goal-seek — price to hit a target", _S["h2"]))
+        flow.append(Paragraph("The maximum purchase price that achieves each target at the current rent and financing.", _S["p"]))
+        flow.append(data_table(["Target", "Max price you can pay"],
+            [["7.0% going-in cap", _money(rev.get("cap"))], ["8.0% cash-on-cash", _money(rev.get("coc"))],
+             ["1.25× DSCR", _money(rev.get("dscr"))]],
+            aligns=["LEFT","RIGHT"], widths=[3.6*inch, 3.7*inch]))
+    if risk:
+        flow.append(Paragraph(f"Risk assessment — grade {risk['grade']} ({risk['score']}/100, {risk['band']})", _S["h2"]))
+        flow.append(Paragraph(f"<b>{_xmlp(risk['decision'])}</b>", _S["p"]))
+        rrows = [[f["severity"], Paragraph(f"<b>{_xmlp(f['title'])}</b><br/><font size=7 color='#6b7689'>{_xmlp(f['mitigation'])}</font>", _S["p"])]
+                 for f in risk.get("top", [])[:6]]
+        if rrows:
+            rt = data_table(["Sev.", "Risk &amp; mitigation"], rrows, aligns=["LEFT","LEFT"], widths=[0.8*inch, 6.5*inch])
+            rt.setStyle(TableStyle([("TEXTCOLOR",(0,i+1),(0,i+1), SEVCOLOR.get(f["severity"], colors.black))
+                                    for i, f in enumerate(risk.get("top", [])[:6])] +
+                                   [("FONTNAME",(0,1),(0,-1),"Helvetica-Bold"),("FONTSIZE",(0,1),(0,-1),7.5)]))
+            flow.append(rt)
+    # analysis narrative
+    flow.append(Paragraph("Analysis", _S["h2"]))
+    cap, coc, dscr = uw["cap_rate"], uw["coc"], uw["dscr"]
+    verdict = ("a clean acquisition" if dscr >= 1.25 and coc >= 0.05 else
+               "workable with the right price" if dscr >= 1.1 else "thin — re-trade the price")
+    narrative = (f"At {_money(price)} against {_money(rent)}/mo rent, the deal is <b>{verdict}</b>. "
+        f"It pencils to a {_pct(cap,2)} going-in cap and {_pct(coc,2)} cash-on-cash, with {uw['dscr']:.2f}× debt coverage "
+        f"and {_money(uw['monthly_cf'])} of monthly cash flow on {_money(uw['cash_invested'])} invested. "
+        + ("Debt coverage is comfortably above the 1.25× lenders want. " if dscr >= 1.25 else
+           "Debt coverage is tight — lower leverage or improve the basis. " if dscr < 1.2 else "")
+        + "Insurance and tax are the per-state corrected figures; confirm a bound insurance quote and actual rent before close.")
+    flow.append(Paragraph(narrative, _S["p"]))
+    hf = HeaderFooter("Property Underwriting", p.get("tier", ""))
     doc.build(flow, onFirstPage=hf, onLaterPages=hf); buf.seek(0); return buf.read()
+
+def _xmlp(t):
+    return str(t).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+def _uw_lines(p, price, rent, a, uw):
+    gsr = rent * 12; vac = gsr * a.get("vacancy", 0.05); egi = gsr - vac
+    pmf = egi * a.get("pm", 0.08); mnt = gsr * a.get("maint", 0.05); txf = price * a.get("tax", 0.011)
+    return [("Gross scheduled rent", gsr), ("Vacancy loss", -vac), ("Effective gross income", egi),
+            ("Property management", -pmf), ("Maintenance", -mnt), ("Property tax", -txf),
+            ("Insurance", -a.get("ins", 1400)), ("HOA", -a.get("hoa", 0)), ("Other opex", -a.get("other", 300)),
+            ("Net operating income", uw["noi"]), ("Annual debt service", -uw["debt_service"]),
+            ("Cash flow before tax", uw["cash_flow"])]
+
+def underwriting_book_pdf(deals):
+    """Portfolio underwriting book — full 2-page report if a single deal, else one page per property."""
+    if len(deals) == 1:
+        d = deals[0]
+        return property_pdf(d["p"], d["uw"], price=d["price"], rent=d["rent"], a=d["a"], rev=d.get("rev"), risk=d.get("risk"))
+    buf, doc = _doc("Underwriting Book", f"{len(deals)} properties")
+    flow = [Paragraph("Portfolio Underwriting Book", _S["h1"]),
+            Paragraph(f"{len(deals)} properties · one page each · sorted by score.", _S["sub"])]
+    srows = [[f"{i+1}", _xmlp(d["p"]["address"])[:30], d["p"]["state"], _money(d["price"]),
+              _pct(d["uw"]["cap_rate"],1), _pct(d["uw"]["coc"],1), f"{d['uw']['dscr']:.2f}", _money(d["uw"]["monthly_cf"])]
+             for i, d in enumerate(deals)]
+    flow.append(data_table(["#", "Address", "ST", "Price", "Cap", "CoC", "DSCR", "Mo. CF"], srows,
+                aligns=["LEFT","LEFT","LEFT","RIGHT","RIGHT","RIGHT","RIGHT","RIGHT"],
+                widths=[0.3*inch,2.3*inch,0.5*inch,1.1*inch,0.7*inch,0.7*inch,0.7*inch,1.0*inch]))
+    for d in deals:
+        p, uw, a = d["p"], d["uw"], d["a"]
+        flow.append(PageBreak())
+        flow.append(Paragraph(_xmlp(p["address"]), _S["h1"]))
+        flow.append(Paragraph(f"{p['city']}, {p['state']} {p['zip']} · APN {p['apn']} · <b>{p['tier']}</b> (score {p['total_score']:.0f})", _S["sub"]))
+        flow.append(kpi_grid([("Going-in Cap", _pct(uw["cap_rate"],2)), ("Cash-on-Cash", _pct(uw["coc"],2)),
+                      ("DSCR", f"{uw['dscr']:.2f}"), ("Monthly CF", _money(uw["monthly_cf"]))]))
+        flow.append(Paragraph("Cash flow", _S["h2"]))
+        flow.append(data_table(["Line item", "Amount"],
+            [[l, ("(" + _money(abs(v)) + ")" if v < 0 else _money(v))] for l, v in _uw_lines(p, d["price"], d["rent"], a, uw)],
+            aligns=["LEFT","RIGHT"], widths=[4.0*inch, 3.3*inch]))
+    hf = HeaderFooter("Underwriting Book", f"{len(deals)} properties")
+    doc.build(flow, onFirstPage=hf, onLaterPages=hf); buf.seek(0); return buf.read()
+
+def underwriting_book_xlsx(deals):
+    """Summary sheet (one row per property) + a detailed cash-flow sheet for each site."""
+    buf = io.BytesIO(); wb = xlsxwriter.Workbook(buf, {"in_memory": True}); F = _xl_formats(wb)
+    S = wb.add_worksheet("Summary"); S.hide_gridlines(2)
+    S.merge_range(0, 0, 0, 9, "Terra · Underwriting Book — Summary", F["title"])
+    S.merge_range(1, 0, 1, 9, f"{len(deals)} properties · each has its own detailed sheet (tab).", F["sub"])
+    heads = [("Address", 30), ("City", 14), ("ST", 5), ("Tier", 16), ("Score", 8), ("Price", 12),
+             ("Rent", 10), ("Cap", 8), ("CoC", 8), ("DSCR", 8), ("Monthly CF", 12), ("NOI", 12)]
+    for c, (h, w) in enumerate(heads):
+        S.write(3, c, h, F["hdrR"] if c >= 4 else F["hdr"]); S.set_column(c, c, w)
+    used = set()
+    for i, d in enumerate(deals):
+        p, uw = d["p"], d["uw"]; r = 4 + i
+        S.write(r, 0, p["address"], F["cell"]); S.write(r, 1, p["city"], F["cell"]); S.write(r, 2, p["state"], F["cell"])
+        S.write(r, 3, p["tier"], F["cell"]); S.write(r, 4, round(p["total_score"], 1), F["num2"])
+        S.write(r, 5, d["price"], F["money"]); S.write(r, 6, d["rent"], F["money"])
+        S.write(r, 7, uw["cap_rate"], F["pct"]); S.write(r, 8, uw["coc"], F["pct"])
+        S.write(r, 9, uw["dscr"], F["num2"]); S.write(r, 10, uw["monthly_cf"], F["money"]); S.write(r, 11, uw["noi"], F["money"])
+    S.freeze_panes(4, 0); S.autofilter(3, 0, 3 + len(deals), 11)
+    # per-site sheets
+    for i, d in enumerate(deals):
+        p, uw, a = d["p"], d["uw"], d["a"]
+        nm = ("%d %s" % (i + 1, str(p["apn"])))[:28]
+        while nm in used: nm = nm + "_"
+        used.add(nm)
+        ws = wb.add_worksheet(nm); ws.hide_gridlines(2); ws.set_column(0, 0, 30); ws.set_column(1, 1, 16)
+        ws.merge_range(0, 0, 0, 3, p["address"], F["title"])
+        ws.merge_range(1, 0, 1, 3, f"{p['city']}, {p['state']} {p['zip']} · APN {p['apn']} · {p['tier']}", F["sub"])
+        ws.write(3, 0, "Property", F["hdr"]); ws.write(3, 1, "", F["hdr"])
+        facts = [("Year built", p["yearbuilt"]), ("Sqft", p["sqft"]), ("Beds", p["beds"]), ("AVM", p["avm"]),
+                 ("Approved rent", p["market_rent"]), ("Score", round(p["total_score"], 1))]
+        r = 4
+        for k, v in facts:
+            ws.write(r, 0, k, F["cell"]); ws.write(r, 1, v, F["money"] if k in ("AVM", "Approved rent") else F["cellR"]); r += 1
+        r += 1; ws.write(r, 0, "Cash flow", F["hdr"]); ws.write(r, 1, "Amount", F["hdrR"]); r += 1
+        for l, v in _uw_lines(p, d["price"], d["rent"], a, uw):
+            bold = l in ("Net operating income", "Effective gross income", "Cash flow before tax")
+            ws.write(r, 0, l, F["cell"]); ws.write(r, 1, v, F["money"]); r += 1
+        r += 1; ws.write(r, 0, "Key metrics", F["hdr"]); ws.write(r, 1, "", F["hdrR"]); r += 1
+        for l, v, fm in [("Going-in cap", uw["cap_rate"], "pct"), ("Cash-on-cash", uw["coc"], "pct"),
+                         ("DSCR", uw["dscr"], "num2"), ("Monthly cash flow", uw["monthly_cf"], "money"),
+                         ("All-in basis", uw["all_in"], "money"), ("Cash invested", uw["cash_invested"], "money")]:
+            ws.write(r, 0, l, F["cell"]); ws.write(r, 1, v, F[fm]); r += 1
+    wb.close(); buf.seek(0); return buf.read()
 
 # ----------------------------------------------------------- Excel
 def _xl_formats(wb):
