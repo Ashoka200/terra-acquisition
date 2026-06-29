@@ -18,15 +18,31 @@ DATA = os.environ.get("RE_DATA", os.path.join(os.path.dirname(__file__), "..", "
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-in-prod")
 
-# numpy-safe JSON (pandas/iloc returns np.int64/float64 which Flask can't serialize)
+# numpy-safe + NaN-safe JSON.
+#  - default(): pandas/iloc returns np.int64/float64 which Flask can't serialize.
+#  - dumps():   NaN/Inf are INVALID JSON. A Python/numpy float('nan') is emitted as a
+#    literal `NaN` BEFORE default() ever runs (float subclass), which the browser's
+#    JSON.parse rejects — that left Tier 2/3 Targets stuck on "searching…" because some
+#    rows have NaN `tenure`. So we pre-walk the payload and convert NaN/Inf → null.
+import math as _math
 import numpy as np
 from flask.json.provider import DefaultJSONProvider
+def _json_clean(o):
+    if isinstance(o, float):  # also catches np.floating (a float subclass)
+        return None if (_math.isnan(o) or _math.isinf(o)) else o
+    if isinstance(o, dict):
+        return {k: _json_clean(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [_json_clean(v) for v in o]
+    return o
 class _NPJSON(DefaultJSONProvider):
     def default(self, o):
         if isinstance(o, np.integer): return int(o)
         if isinstance(o, np.floating): return None if np.isnan(o) else float(o)
         if isinstance(o, np.ndarray): return o.tolist()
         return super().default(o)
+    def dumps(self, obj, **kwargs):
+        return super().dumps(_json_clean(obj), **kwargs)
 app.json = _NPJSON(app)
 
 # ---------------- security firewall: rate limit + headers + CSRF ----------------
