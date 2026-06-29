@@ -1066,7 +1066,8 @@ def atlas_status():
     src = "none"
     if k: src = "saved" if os.path.exists(ATLAS_KEY_FILE) else "environment"
     return jsonify(has_key=bool(k), source=src, masked=_mask(k),
-                   model=os.environ.get("ATLAS_MODEL", assistant.MODEL), can_edit=_admin_ok())
+                   model=assistant._WORKING_MODEL or os.environ.get("ATLAS_MODEL", assistant.MODEL),
+                   can_edit=_admin_ok())
 
 @app.route("/api/atlas/key", methods=["POST"])
 def atlas_set_key():
@@ -1082,20 +1083,19 @@ def atlas_set_key():
         return jsonify(ok=False, error="That doesn't look like an Anthropic key — it should start with 'sk-ant-'."), 400
     prev = os.environ.get("ANTHROPIC_API_KEY")
     os.environ["ANTHROPIC_API_KEY"] = key
-    # validate with a 1-token call so we never save a key Anthropic rejects
-    try:
-        import anthropic
-        anthropic.Anthropic().messages.create(model=os.environ.get("ATLAS_MODEL", assistant.MODEL),
-            max_tokens=1, messages=[{"role": "user", "content": "ping"}])
-    except Exception as e:
+    assistant._WORKING_MODEL = None  # re-resolve the model for the new key
+    # validate the KEY (auth), independently of which models it can access
+    ok, info = assistant.validate_key()
+    if not ok:
         if prev: os.environ["ANTHROPIC_API_KEY"] = prev
         else: os.environ.pop("ANTHROPIC_API_KEY", None)
-        return jsonify(ok=False, error="Anthropic rejected the key: " + str(e)[:160]), 400
+        return jsonify(ok=False, error=info), 400
     try:
         os.makedirs(DATA, exist_ok=True)
         with open(ATLAS_KEY_FILE, "w") as fh: fh.write(key)
-    except Exception:
-        pass
+    except Exception as e:
+        return jsonify(ok=True, has_key=True, authenticated=True, masked=_mask(key),
+                       warn="key works but couldn't be saved to disk (%s) — it will be lost on restart unless a Volume is mounted at the data path" % str(e)[:80])
     return jsonify(ok=True, has_key=True, authenticated=True, masked=_mask(key))
 
 @app.route("/api/<tool>", methods=["POST"])

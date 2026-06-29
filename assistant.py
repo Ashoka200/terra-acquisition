@@ -10,6 +10,56 @@ import os, re, json
 import knowledge
 
 MODEL = os.environ.get("ATLAS_MODEL", "claude-opus-4-8")
+# Model fallbacks — if the configured model isn't available to THIS API key, ATLAS tries
+# the next one instead of silently dropping to offline. Order: newest → broadly-available.
+_FALLBACK_MODELS = ["claude-opus-4-8", "claude-sonnet-4-6", "claude-3-7-sonnet-latest",
+                    "claude-3-5-sonnet-latest", "claude-3-5-haiku-latest", "claude-3-haiku-20240307"]
+_WORKING_MODEL = None
+
+def _candidate_models():
+    seen, out = set(), []
+    for mdl in [os.environ.get("ATLAS_MODEL", MODEL)] + _FALLBACK_MODELS:
+        if mdl and mdl not in seen:
+            seen.add(mdl); out.append(mdl)
+    return out
+
+def _choose_model(client):
+    """Return a model id this key can actually use (cached). Auth errors propagate."""
+    global _WORKING_MODEL
+    if _WORKING_MODEL:
+        return _WORKING_MODEL
+    import anthropic
+    last = None
+    for mdl in _candidate_models():
+        try:
+            client.messages.create(model=mdl, max_tokens=1, messages=[{"role": "user", "content": "hi"}])
+            _WORKING_MODEL = mdl
+            return mdl
+        except anthropic.AuthenticationError:
+            raise
+        except Exception as e:
+            last = e
+    raise last or RuntimeError("no usable model")
+
+def validate_key():
+    """Check the KEY (auth) independently of any model, via models.list. Returns (ok, info)."""
+    try:
+        import anthropic
+    except ImportError:
+        return False, "anthropic SDK not installed on the server"
+    try:
+        client = anthropic.Anthropic()
+        try:
+            client.models.list(limit=1)        # auth check — no model invoked
+            return True, "ok"
+        except AttributeError:                 # very old SDK without models.list
+            _choose_model(client)
+            return True, "ok"
+    except Exception as e:
+        name = type(e).__name__
+        if "Authentication" in name or "PermissionDenied" in name:
+            return False, "the key was rejected (authentication failed) — check it's correct and active"
+        return False, str(e)[:160]
 
 SYSTEM = """You are ATLAS, the residential-acquisition copilot for United Brothers.
 You sit on a deterministic Python engine that is a 100%-parity port of the firm's Excel
@@ -454,8 +504,9 @@ def ask(message, history, dispatch, snapshot, profile=None, assumptions=None):
         # history items must be {role, content:str}; drop anything malformed
         hist = [m for m in (history or []) if isinstance(m, dict) and m.get("role") in ("user", "assistant") and isinstance(m.get("content"), str)]
         msgs = hist[-12:] + [{"role": "user", "content": message}]
+        model = _choose_model(client)  # a model THIS key can use (falls back if the default isn't available)
         for _ in range(6):
-            resp = client.messages.create(model=MODEL, max_tokens=1600, system=sys, tools=TOOL_SPECS, messages=msgs)
+            resp = client.messages.create(model=model, max_tokens=1600, system=sys, tools=TOOL_SPECS, messages=msgs)
             if resp.stop_reason == "tool_use":
                 msgs.append({"role": "assistant", "content": resp.content})
                 results = []

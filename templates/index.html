@@ -1168,7 +1168,7 @@ async function refreshAtlasStatus(){let d;try{d=await get('/api/atlas/status');}
 async function saveAtlasKey(){const k=$('#akInput').value.trim();if(!k){$('#akMsg').innerHTML='<span style="color:#c0392b">Paste a key first.</span>';return}
  $('#akMsg').innerHTML='<span class="spin"></span> validating with Anthropic…';
  let d;try{d=await post('/api/atlas/key',{key:k});}catch(e){d={ok:false,error:'request failed'}}
- if(d.ok){$('#akInput').value='';$('#akMsg').innerHTML='<b style="color:#0a7a55">✓ Connected — ATLAS is now in AI mode.</b>';refreshAtlasStatus();}
+ if(d.ok){$('#akInput').value='';$('#akMsg').innerHTML='<b style="color:#0a7a55">✓ Connected — ATLAS is now in AI mode.</b>'+(d.warn?'<br><span style="color:#c47b27;font-size:11px">⚠ '+esc(d.warn)+'</span>':'');refreshAtlasStatus();}
  else $('#akMsg').innerHTML='<span style="color:#c0392b">⚠ '+esc(d.error||'failed')+'</span>';}
 async function clearAtlasKey(){if(!confirm('Remove the saved Anthropic key? ATLAS returns to offline mode.'))return;
  try{await post('/api/atlas/key',{clear:true});}catch(e){}
