@@ -700,10 +700,40 @@ def _prop_params(p):
             "ltv": a["ltv"], "rate": a["rate"], "amort": a["amort"], "pm": a["pm"], "rm": a["maint"],
             "vacancy": a["vacancy"], "other_home": a["other"], "hoa_home": a["hoa"]}
 
-@app.route("/api/report/underwriting_book.<fmt>")
+def _resolve_apns(values):
+    """Resolve a list of APNs/addresses to scored property rows (skip misses)."""
+    out, seen = [], set()
+    for v in values[:150]:
+        r = t_lookup_property(query=str(v).strip())
+        if r.get("found") and str(r["apn"]) not in seen:
+            seen.add(str(r["apn"])); out.append(r)
+    return out
+
+@app.route("/api/report/underwriting_book.<fmt>", methods=["GET", "POST"])
 def rep_uw_book(fmt):
-    tier = request.args.get("tier", "Tier 1 - Strong"); limit = min(int(request.args.get("limit", 25)), 60)
-    rows = t_search_targets(tier=tier, state=request.args.get("state"), limit=limit)["rows"]
+    rows = None
+    if request.method == "POST":
+        # uploaded file (apn/address column) OR a JSON list of apns/addresses
+        f = request.files.get("file")
+        if f is not None:
+            try:
+                name = f.filename.lower()
+                up = pd.read_parquet(f) if name.endswith(".parquet") else \
+                     (pd.read_excel(f) if name.endswith(".xlsx") else pd.read_csv(f))
+            except Exception as e:
+                return jsonify(error="could not read file: " + str(e)[:100]), 400
+            col = next((c for c in up.columns if str(c).strip().lower() in ("apn", "parcel", "parcel_id")), None) \
+                  or next((c for c in up.columns if "address" in str(c).strip().lower()), None) \
+                  or up.columns[0]
+            rows = _resolve_apns([str(x) for x in up[col].dropna().tolist()])
+        else:
+            b = request.get_json(silent=True) or {}
+            rows = _resolve_apns(b.get("apns", []))
+        if not rows:
+            return jsonify(error="no matching properties found in the file/list"), 404
+    else:
+        tier = request.args.get("tier", "Tier 1 - Strong"); limit = min(int(request.args.get("limit", 25)), 150)
+        rows = t_search_targets(tier=tier, state=request.args.get("state"), limit=limit)["rows"]
     deals = []
     for p in rows:
         apn = str(p["apn"]); ov = UW_OVERRIDES.get(apn, {}); a = _eff_assump(apn)

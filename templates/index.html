@@ -89,7 +89,16 @@ body{margin:0;font-family:Inter,system-ui,sans-serif;color:var(--ink);background
 .k6{grid-template-columns:repeat(6,1fr)}.k3{grid-template-columns:repeat(3,1fr)}.k2{grid-template-columns:1fr 1fr}.k4{grid-template-columns:repeat(4,1fr)}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
 .card.pad{padding:18px}
-.kpi{padding:16px 17px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+.kpi{padding:16px 17px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);position:relative}
+.kpi.clickable{cursor:pointer;transition:.15s}
+.kpi.clickable:hover{border-color:var(--emer);box-shadow:0 6px 18px rgba(14,157,110,.18);transform:translateY(-1px)}
+.kpi .kgo{margin-left:6px;color:var(--emer-d);font-weight:800;opacity:0;transition:.15s}
+.kpi.clickable:hover .kgo{opacity:1}
+.barrow.clickable{cursor:pointer;border-radius:8px;padding:2px 4px;margin:0 -4px;transition:.12s}
+.barrow.clickable:hover{background:#f0faf5}
+.uwbook{margin-top:12px;border-top:1px solid var(--line2);padding-top:12px}
+.bkrow{display:flex;gap:10px;align-items:end;flex-wrap:wrap}
+.bkfile{padding:7px;border:1px dashed var(--line);border-radius:9px;background:#fafdfb;font-size:12px}
 .kpi .l{color:var(--mut);font-size:12px;font-weight:600;letter-spacing:.02em;text-transform:uppercase;display:flex;align-items:center;gap:7px}
 .kpi .l .ic{width:26px;height:26px;border-radius:8px;background:var(--emer-l);display:grid;place-items:center;color:var(--emer-d)}
 .kpi .l .ic svg{width:15px;height:15px}
@@ -417,10 +426,22 @@ select.uin{text-align:left}
            <div class="seg"><button class="on" id="seg_fwd" onclick="uwMode('fwd')">Forward</button><button id="seg_rev" onclick="uwMode('rev')">Reverse</button></div>
            <span id="uwScope" class="pill" style="display:none"></span>
          </div>
-         <div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap">
-           <span class="muted" style="font-size:12px">Underwriting book (summary + one sheet/page per property):</span>
-           <button class="btn ghost" style="padding:7px 12px;font-size:12px" onclick="dl('/api/report/underwriting_book.xlsx?limit=25')">⤓ Top-25 Excel</button>
-           <button class="btn ghost" style="padding:7px 12px;font-size:12px" onclick="dl('/api/report/underwriting_book.pdf?limit=25')">⤓ Top-25 PDF</button>
+         <div class="uwbook">
+           <div style="font-weight:700;font-size:13px;margin-bottom:2px">📑 Batch underwriting reports <span class="muted" style="font-weight:400">— summary + one page/sheet per property</span></div>
+           <div class="bkrow">
+             <div class="fld" style="margin:0"><label>Tier</label><select id="bk_tier"><option>Tier 1 - Strong</option><option>Tier 2 - Moderate</option><option>Tier 3 - Watch</option></select></div>
+             <div class="fld" style="margin:0"><label>State / city</label><input id="bk_state" placeholder="all" style="width:120px"></div>
+             <div class="fld" style="margin:0"><label>How many (top by score)</label><input id="bk_n" type="number" min="1" max="150" value="25" style="width:80px"></div>
+             <button class="btn emer" onclick="bookTop('pdf')">⤓ PDF</button>
+             <button class="btn ghost" onclick="bookTop('xlsx')">⤓ Excel</button>
+           </div>
+           <div class="bkrow" style="margin-top:8px">
+             <span class="muted" style="font-size:12px">Or check specific properties — upload a file with an <b>apn</b> or <b>address</b> column:</span>
+             <input type="file" id="bk_file" accept=".csv,.xlsx,.parquet" class="bkfile">
+             <button class="btn ghost" onclick="bookUpload('pdf')">⤓ PDF from file</button>
+             <button class="btn ghost" onclick="bookUpload('xlsx')">⤓ Excel from file</button>
+           </div>
+           <div id="bkStat" class="muted" style="font-size:12px;margin-top:7px"></div>
          </div>
        </div>
        <div id="uwBody"><div class="muted" style="padding:28px;text-align:center;border:1px dashed var(--line);border-radius:12px">Load a property above, or open one from the Map / Targets and click <b>“Open in underwriting”</b>.</div></div>
@@ -526,30 +547,42 @@ $('#nav').addEventListener('click',e=>{const a=e.target.closest('a');if(!a)retur
 
 // ---------------- DASHBOARD ----------------
 const IC={port:'M3 3v18h18',home:'M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',pct:'M19 5L5 19M6.5 6.5h.01M17.5 17.5h.01',pin:'M12 21s-7-6-7-11a7 7 0 0 1 14 0c0 5-7 11-7 11z',hash:'M4 9h16M4 15h16M10 3L8 21M16 3l-2 18',clock:'M12 7v5l3 2'};
-function kpi(l,ic,v,s){return `<div class="kpi"><div class="l"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="${ic}"/></svg></span>${l}</div><div class="v">${v}</div><div class="s">${s||''}</div></div>`}
+function kpi(l,ic,v,s,click){return `<div class="kpi${click?' clickable':''}"${click?` onclick="${click}" title="View details →"`:''}><div class="l"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="${ic}"/></svg></span>${l}${click?'<span class="kgo">→</span>':''}</div><div class="v">${v}</div><div class="s">${s||''}</div></div>`}
+// navigate to Targets with filters applied (so a metric drills into its underlying data)
+function goTargets(tier,sort,state){$$('#nav a').forEach(x=>x.classList.remove('on'));
+ document.querySelector('#nav a[data-v=targets]').classList.add('on');
+ $$('.view').forEach(x=>x.classList.remove('on'));$('#targets').classList.add('on');
+ if(tier)$('#t_tier').value=tier; $('#t_sort').value=sort||'total_score'; $('#t_state').value=state||'';
+ $('#t_yield').value='';$('#t_price').value='';loadTargets();window.scrollTo(0,0);}
+function goMapState(state){$$('#nav a').forEach(x=>x.classList.remove('on'));
+ document.querySelector('#nav a[data-v=map]').classList.add('on');
+ $$('.view').forEach(x=>x.classList.remove('on'));$('#map').classList.add('on');
+ $('#m_state').value=state||'';setTimeout(()=>{initMap();setTimeout(loadMap,250);},60);}
 async function loadDash(){
  const a=await post('/api/analytics');
  $('#kpis').innerHTML=
-  kpi('Tier 1',IC.home,f(a.tiers['Tier 1 - Strong']),'priority outreach')+
-  kpi('Tier 2',IC.home,f(a.tiers['Tier 2 - Moderate']),'secondary nurture')+
-  kpi('Avg yield',IC.pct,pct(a.tier1_avg_yield),'Tier-1 gross')+
-  kpi('Avg AVM',IC.port,'$'+f(a.tier1_avg_avm),'Tier-1 value')+
-  kpi('Avg tenure',IC.clock,a.tier1_avg_tenure+' yr','ownership')+
-  kpi('Geo HHI',IC.hash,f(a.hhi),a.hhi>2500?'highly concentrated':'moderate');
- // tier donut
- chart('cTier','doughnut',{labels:Object.keys(a.tiers),datasets:[{data:Object.values(a.tiers),
+  kpi('Tier 1',IC.home,f(a.tiers['Tier 1 - Strong']),'priority outreach',"goTargets('Tier 1 - Strong','total_score')")+
+  kpi('Tier 2',IC.home,f(a.tiers['Tier 2 - Moderate']),'secondary nurture',"goTargets('Tier 2 - Moderate','total_score')")+
+  kpi('Avg yield',IC.pct,pct(a.tier1_avg_yield),'Tier-1 gross · sort by yield',"goTargets('Tier 1 - Strong','gross_yield')")+
+  kpi('Avg AVM',IC.port,'$'+f(a.tier1_avg_avm),'Tier-1 value · cheapest first',"goTargets('Tier 1 - Strong','avm')")+
+  kpi('Avg tenure',IC.clock,a.tier1_avg_tenure+' yr','ownership · sort by tenure',"goTargets('Tier 1 - Strong','tenure')")+
+  kpi('Geo HHI',IC.hash,f(a.hhi),(a.hhi>2500?'highly concentrated':'moderate')+' · view map',"goMapState('')");
+ // tier donut — click a slice to drill into that tier
+ const tlabels=Object.keys(a.tiers);
+ chart('cTier','doughnut',{labels:tlabels,datasets:[{data:Object.values(a.tiers),
    backgroundColor:['#0e9d6e','#2f6fed','#e3961a','#cfd6e2'],borderWidth:0}]},
-   {cutout:'62%',plugins:{legend:{position:'right',labels:{boxWidth:12,font:{size:12}}}}});
- // geo bars
+   {cutout:'62%',plugins:{legend:{position:'right',labels:{boxWidth:12,font:{size:12}}}},
+    onClick:(e,el)=>{if(el&&el.length){const t=tlabels[el[0].index];if(t!=='Not a Match')goTargets(t,'total_score');}}});
+ // geo bars — click a state to see its Tier-1 targets
  const ent=Object.entries(a.state_shares);const mx=Math.max(...ent.map(e=>e[1]));
- $('#geoBars').innerHTML=ent.map(([s,v])=>`<div class="barrow"><b>${s}</b><div class="track"><i class="${v>0.35?'over':''}" style="width:${v/mx*100}%"></i></div><span class="mono">${pct(v)}</span></div>`).join('');
+ $('#geoBars').innerHTML=ent.map(([s,v])=>`<div class="barrow clickable" onclick="goTargets('Tier 1 - Strong','total_score','${s}')" title="View ${s} Tier-1 targets →"><b>${s}</b><div class="track"><i class="${v>0.35?'over':''}" style="width:${v/mx*100}%"></i></div><span class="mono">${pct(v)}</span></div>`).join('');
  $('#hhiTag').innerHTML=`HHI ${f(a.hhi)} · <span class="badge ${a.hhi>2500?'b-warn':'b-ok'}">${a.hhi>2500?'highly concentrated':'ok'}</span>`;
  // yield hist
  const yh=a.yield_hist;const labs=yh.edges.slice(0,-1).map((e,i)=>pct(e,0)+'–'+pct(yh.edges[i+1],0));
  chart('cYield','bar',{labels:labs,datasets:[{data:yh.counts,backgroundColor:'#0e9d6e',borderRadius:5}]},
    {plugins:{legend:{display:false}},scales:{x:{ticks:{font:{size:10}}},y:{grid:{color:'#eef1f6'}}}});
  // risk panel
- const over=Object.entries(a.over_cap).map(([s,v])=>`<span class="badge b-warn" style="margin:2px">${s} ${pct(v)} · over 35% cap</span>`).join(' ')||'<span class="badge b-ok">no state over cap</span>';
+ const over=Object.entries(a.over_cap).map(([s,v])=>`<span class="badge b-warn" style="margin:2px;cursor:pointer" onclick="goTargets('Tier 1 - Strong','total_score','${s}')" title="View ${s} →">${s} ${pct(v)} · over 35% cap</span>`).join(' ')||'<span class="badge b-ok">no state over cap</span>';
  $('#riskPanel').innerHTML=`<div class="note">Tier-1 book is <b>${pct(a.state_shares[Object.keys(a.state_shares)[0]])}</b> ${Object.keys(a.state_shares)[0]} + <b>${pct(a.state_shares[Object.keys(a.state_shares)[1]])}</b> ${Object.keys(a.state_shares)[1]}. HHI ${f(a.hhi)} sits well above the DOJ/FTC 2,500 "highly concentrated" line.</div><div style="margin:12px 0">${over}</div><div class="note">Corporate-owned share <b>${pct(a.tier1_corp_share)}</b> · the skip-trace pool. Route new mail to TN / NC / AZ to bring concentration down. Federal overlay: the 350-home institutional-buyer ban makes scale itself a live risk.</div>`;
 }
 function chart(id,type,data,opts){if(CHARTS[id])CHARTS[id].destroy();
@@ -933,6 +966,20 @@ const AFIELDS=[['price','Purchase price','money','= AVM × 90% by default'],['re
  ['tax','Property tax (% price/yr)','pct',''],['ins','Insurance ($/yr)','money',''],['hoa','HOA ($/yr)','money',''],['other','Other opex ($/yr)','money','']];
 const FFIELDS=[['ltv','LTV','pct',''],['rate','Interest rate','pct',''],['amort','Amortization (yrs)','num',''],['points','Loan points','pct','']];
 function uwMode(m){UMODE=m;$('#seg_fwd').classList.toggle('on',m==='fwd');$('#seg_rev').classList.toggle('on',m==='rev');if(UWPROP)renderUW();}
+function bookTop(fmt){const tier=$('#bk_tier').value,st=$('#bk_state').value.trim();
+ const n=Math.max(1,Math.min(150,parseInt($('#bk_n').value)||25));
+ $('#bkStat').textContent='Building '+fmt.toUpperCase()+' for top '+n+' '+tier+'…';
+ dl(`/api/report/underwriting_book.${fmt}?tier=${encodeURIComponent(tier)}&limit=${n}${st?'&state='+encodeURIComponent(st):''}`);
+ setTimeout(()=>{$('#bkStat').textContent='Downloaded — check your downloads.';},1500);}
+async function bookUpload(fmt){const f=$('#bk_file').files[0];if(!f){alert('Choose a CSV/XLSX with an apn or address column first.');return}
+ $('#bkStat').innerHTML='<span class="spin"></span> resolving properties & building '+fmt.toUpperCase()+'…';
+ const fd=new FormData();fd.append('file',f);
+ try{const res=await fetch(`/api/report/underwriting_book.${fmt}`,{method:'POST',body:fd});
+  if(!res.ok){let m='failed';try{m=(await res.json()).error||m;}catch(e){}$('#bkStat').textContent='⚠ '+m;return}
+  const blob=await res.blob();const url=URL.createObjectURL(blob);const a=document.createElement('a');
+  a.href=url;a.download=`Terra_Underwriting_Book.${fmt}`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+  $('#bkStat').textContent='✓ Built from your file — downloaded.';
+ }catch(e){$('#bkStat').textContent='⚠ upload failed';}}
 async function loadUWProp(){const q=$('#uwq').value.trim();if(!q)return;
  $('#uwBody').innerHTML='<div class="muted" style="padding:24px;text-align:center"><span class="spin"></span> loading property…</div>';
  let d;try{d=await post('/api/uw/property',{query:q});}catch(e){d=null}
