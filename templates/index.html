@@ -199,6 +199,7 @@ select option{background:#fff;color:#0b1320}
 .bub .ck{background:#f1f8f4;border:1px solid #d8ece2;border-radius:9px;padding:8px 10px}
 .bub .ck .l{font-size:10px;color:#6b7689;text-transform:uppercase;font-weight:700;letter-spacing:.02em}
 .bub .ck .v{font-size:16px;font-weight:800;color:#0a7a55;margin-top:2px}
+.bub .cul{margin:6px 0 2px;padding-left:18px}.bub .cul li{margin:2px 0}
 .bub table{width:100%;border-collapse:collapse;font-size:11.5px;margin-top:9px}
 .bub table th{background:#eef2f8;color:var(--navy,#0f2143);text-align:left;padding:5px 7px;font-size:10px;text-transform:uppercase;border:0}
 .bub table td{padding:5px 7px;border-bottom:1px solid #eef1f6;text-align:left}
@@ -1141,8 +1142,23 @@ function renderBlocks(blocks){if(!blocks||!blocks.length)return '';
   if(b.type==='table')return `<table><tr>${b.cols.map(c=>`<th>${esc(c)}</th>`).join('')}</tr>${b.rows.map(r=>`<tr>${r.map(c=>`<td>${esc(String(c))}</td>`).join('')}</tr>`).join('')}</table>`;
   if(b.type==='note')return `<div class="note" style="margin-top:8px">${md(b.text)}</div>`;
   return '';}).join('');}
-const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-const md=s=>esc(s).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\*([^*\n]+?)\*/g,'<em>$1</em>').replace(/`([^`]+?)`/g,'<code>$1</code>').replace(/\n/g,'<br>');
+const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const _inl=t=>esc(t).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\*([^*\n]+?)\*/g,'<em>$1</em>').replace(/`([^`]+?)`/g,'<code>$1</code>');
+// markdown renderer that ALSO renders GitHub-style tables + bullet lists, so ATLAS answers read cleanly
+function md(s){const lines=String(s).split('\n');const out=[];let i=0;
+ const isSep=l=>/\|/.test(l)&&/-/.test(l)&&/^[\s|:\-]+$/.test(l);
+ const cells=l=>l.replace(/^\s*\|/,'').replace(/\|\s*$/,'').split('|').map(c=>c.trim());
+ while(i<lines.length){
+  if(/\|/.test(lines[i])&&i+1<lines.length&&isSep(lines[i+1])){
+   const head=cells(lines[i]);i+=2;const rows=[];
+   while(i<lines.length&&/\|/.test(lines[i])&&lines[i].trim()){rows.push(cells(lines[i]));i++;}
+   out.push('<table><tr>'+head.map(h=>`<th>${_inl(h)}</th>`).join('')+'</tr>'+
+     rows.map(r=>'<tr>'+r.map(c=>`<td>${_inl(c)}</td>`).join('')+'</tr>').join('')+'</table>');continue;}
+  if(/^\s*[-•]\s+/.test(lines[i])){const items=[];
+   while(i<lines.length&&/^\s*[-•]\s+/.test(lines[i])){items.push(lines[i].replace(/^\s*[-•]\s+/,''));i++;}
+   out.push('<ul class="cul">'+items.map(t=>`<li>${_inl(t)}</li>`).join('')+'</ul>');continue;}
+  out.push(_inl(lines[i]));i++;}
+ return out.join('<br>').replace(/<br>(<table>|<ul)/g,'$1').replace(/(<\/table>|<\/ul>)<br>/g,'$1');}
 
 // ---------------- PROJECTS / MODEL STUDIO ----------------
 let SELType='SFR';

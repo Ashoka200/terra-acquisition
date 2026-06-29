@@ -14,9 +14,33 @@ MODEL = os.environ.get("ATLAS_MODEL", "claude-opus-4-8")
 SYSTEM = """You are ATLAS, the residential-acquisition copilot for United Brothers.
 You sit on a deterministic Python engine that is a 100%-parity port of the firm's Excel
 acquisition model. NEVER do math yourself — always call a tool and report what it returns.
-Answer bottom-line-first: 1) bold one-line answer, 2) **Confidence:** one word,
-3) **Why:** 2-3 short reasons, 4) **Detail:** key numbers, 5) **Next:** one action.
-Tables only on explicit request."""
+
+OUTPUT — clean, logically sequenced (your reply renders as GitHub-flavored markdown):
+1. **Bold one-line bottom line** first — the direct answer.
+2. A short, ordered explanation. Sequence it logically (cause → effect, or step → step).
+3. Use a **markdown table** whenever you list 3+ items, rank options, or compare scenarios.
+   Right-align the read: put the label column first, numbers after. Keep tables tight.
+4. End with **Next:** one concrete action.
+Keep it scannable — bullets and tables over long paragraphs. State **Confidence** (one word)
+when the answer is an estimate or depends on assumptions.
+
+WHAT-IF & HYPOTHETICALS — always supported. When the user asks "what if <X changes>"
+(rate, LTV, rent, price, vacancy, exit cap, growth, # homes, etc.):
+  • Re-run the relevant tool(s) with the adjusted inputs (underwrite / reverse_solve /
+    portfolio_dcf accept rate, ltv, vacancy, pm, tax, exit_cap, rent_growth, homes, …).
+  • Present a **Before → After** comparison TABLE with the deltas, then a one-line takeaway
+    on whether the change helps or hurts and why. Never hand-wave a hypothetical — compute it.
+  • For multi-step or compounded what-ifs, run each leg and show the cumulative effect.
+
+ALWAYS FLAG ISSUES — never recommend a property or a metric without its risks:
+  • For a specific deal, call `risk` (grade + flags) and/or `explain_calc` (score drivers,
+    gate, cap/CoC/DSCR) and surface the material flags with their mitigations.
+  • Call out standing caveats that apply: negative leverage (cap < debt rate), thin DSCR
+    (< 1.25), sub-8% gross yield, AVM-is-a-model (not an appraisal), single-state/metro
+    concentration, climate/insurance exposure (FL/LA/CA/TX/coastal), pre-1978 lead paint.
+  • Be honest about data limits: title/liens, environmental (Phase I) and litigation are
+    NOT in the dataset — flag them as "needs an ordered report," never fabricate them.
+A recommendation with no caveats is incomplete — include the risks every time."""
 
 TOOL_SPECS = [
     {"name": "market_summary", "description": "Tier distribution, geo concentration, HHI, match rate.",
@@ -98,6 +122,55 @@ def offline_answer(msg, dispatch, profile=None, assumptions=None):
         if profile is not None and not has_prop_ref:
             kb = knowledge.answer_kb(msg, profile, assumptions or {}, snapshot=None)
             if kb: return _resp(kb)
+        # 0.7) WHAT-IF / hypothetical — vary one assumption, show Before -> After + the risk
+        if any(w in m for w in ["what if", "what happens if", "if i ", "if the ", "suppose ", "scenario"]):
+            # only $-prefixed or k/m-suffixed amounts (so "8%" isn't read as money)
+            amts = []
+            for mt in re.finditer(r"\$\s*([\d,]+(?:\.\d+)?)\s*([kKmM]?)|\b([\d,]+(?:\.\d+)?)\s*([kKmM])\b", m):
+                num = mt.group(1) or mt.group(3); suf = (mt.group(2) or mt.group(4) or "").lower()
+                amts.append(float(num.replace(",", "")) * (1000 if suf == "k" else 1_000_000 if suf == "m" else 1))
+            price = max([a for a in amts if a > 40000], default=None) or 270000
+            rmt = re.search(r"(?:rent|renting|rents?\s+(?:at|for)|@)\D{0,8}\$?\s*([\d,]+)", m)
+            rent = float(rmt.group(1).replace(",", "")) if rmt else None
+            if rent is not None and rent < 300:  # caught a percent like "rent drops 10%"
+                rent = None
+            if rent is None:
+                cand = [a for a in amts if 300 <= a <= 20000 and a != price]
+                rent = cand[0] if cand else None
+            rent = rent or 2200
+            over = {}
+            rr = re.search(r"(?:rate|interest)\D{0,6}([\d.]+)\s*%", m) or re.search(r"([\d.]+)\s*%\s*(?:rate|interest)", m)
+            if rr and ("rate" in m or "interest" in m): over["rate"] = float(rr.group(1)) / 100
+            dn = re.search(r"([\d.]+)\s*%\s*down", m)
+            lv = re.search(r"(?:ltv|leverage|loan)\D{0,6}([\d.]+)\s*%", m)
+            if dn: over["ltv"] = 1 - float(dn.group(1)) / 100
+            elif lv and any(w in m for w in ["ltv", "leverage", "loan"]): over["ltv"] = float(lv.group(1)) / 100
+            vc = re.search(r"vacancy\D{0,6}([\d.]+)\s*%", m)
+            if vc: over["vacancy"] = float(vc.group(1)) / 100
+            rent2 = rent
+            rc = re.search(r"rent\D{0,16}([\d.]+)\s*%", m)
+            if rc:
+                sign = -1 if any(w in m for w in ["drop", "fall", "down", "decrease", "lower", "cut"]) else 1
+                rent2 = round(rent * (1 + sign * float(rc.group(1)) / 100))
+            if over or rent2 != rent:
+                base = dispatch["underwrite"](price=price, monthly_rent=rent)
+                new = dispatch["underwrite"](price=price, monthly_rent=rent2, **over)
+                rows = [["Cap rate", _fmt_pct(base["cap_rate"], 2), _fmt_pct(new["cap_rate"], 2)],
+                        ["Cash-on-cash", _fmt_pct(base["coc"], 2), _fmt_pct(new["coc"], 2)],
+                        ["DSCR", f"{base['dscr']:.2f}", f"{new['dscr']:.2f}"],
+                        ["Monthly CF", _fmt_money(base["monthly_cf"]), _fmt_money(new["monthly_cf"])]]
+                rate_used = over.get("rate", 0.0725)
+                helps = new["dscr"] >= base["dscr"] and new["coc"] >= base["coc"]
+                flags = []
+                if new["cap_rate"] < rate_used: flags.append("negative leverage — cap is below the debt rate, so leverage now hurts returns")
+                if new["dscr"] < 1.25: flags.append(f"DSCR {new['dscr']:.2f} is below the 1.25x lenders want")
+                if new["coc"] < 0.04: flags.append("cash-on-cash under 4% leaves little cushion")
+                issue = (" · ".join(flags) if flags else "coverage and yield stay within normal bounds")
+                return _resp(
+                    f"**What-if at {_fmt_money(price)} / {_fmt_money(rent2)} rent: the change {'helps' if helps else 'weakens'} the deal.**\n"
+                    f"**Watch:** {issue}.\n"
+                    f"**Next:** open Underwriting to tune any input, or ask another what-if.",
+                    [_table(["Metric", "Before", "After"], rows)])
         # 1) reverse goal-seek
         if any(w in m for w in ["what price", "how much", "price to", "pay to", "price that", "implied price"]) or \
            (("price" in m or "pay" in m) and any(w in m for w in ["dscr", "cap", "cash-on-cash", "cash on cash", "coc", "yield"])):
@@ -227,11 +300,20 @@ def offline_answer(msg, dispatch, profile=None, assumptions=None):
             if not r["rows"]:
                 return _resp("**No targets match those filters.** Try loosening the state, price, or yield.")
             where = f" in {args['state']}" if st else ""
+            top8 = r["rows"][:8]
             rows = [[x['address'], x['state'], _fmt_money(x['avm']), _fmt_pct(x['gross_yield']),
-                     f"{x['total_score']:.0f}"] for x in r["rows"][:8]]
+                     f"{x['total_score']:.0f}"] for x in top8]
+            # flag issues on the suggestion set (don't recommend without caveats)
+            sts = {x['state'] for x in top8}
+            climate = sts & {"FL", "LA", "TX", "CA"}
+            caveat = ["scores use an **AVM, not an appraisal** — re-trade against comps before LOI"]
+            if climate: caveat.append(f"{', '.join(sorted(climate))}: bind a real **insurance** quote (climate/premium risk)")
+            if len(sts) == 1: caveat.append(f"all in **{list(sts)[0]}** — single-state concentration")
+            caveat.append("title / environmental / litigation aren't in the data — order reports in diligence")
             return _resp(
                 f"**{r['count']} {tier} target(s){where}** — top {len(rows)} by score:\n"
-                f"**Next:** open Targets to sort, or the Map to see them clustered.",
+                f"**Watch:** " + "; ".join(caveat) + ".\n"
+                f"**Next:** open Targets to sort/underwrite, or ask me to underwrite a specific one.",
                 [_table(["Address", "ST", "AVM", "Yield", "Score"], rows)])
         # 5) market summary / concentration
         if any(w in m for w in ["summary", "how many", "concentration", "hhi", "distribution", "pipeline", "overview", "risk"]):
