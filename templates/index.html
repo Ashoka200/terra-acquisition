@@ -373,7 +373,7 @@ select.uin{text-align:left}
            <h4>Filter targets</h4>
            <div class="fld" style="margin-bottom:9px"><label>Tier</label><select id="m_tier"><option>Tier 1 - Strong</option><option>Tier 2 - Moderate</option><option>Tier 3 - Watch</option></select></div>
            <div class="fld" style="margin-bottom:9px"><label>State / city</label><input id="m_state" placeholder="e.g. GA, Georgia, or Atlanta"></div>
-           <div class="fld" style="margin-bottom:9px"><label>Min gross yield</label><input id="m_yield" placeholder="e.g. 0.10"></div>
+           <div class="fld" style="margin-bottom:9px"><label>Min gross yield (%)</label><input id="m_yield" placeholder="e.g. 10"></div>
            <div class="fld" style="margin-bottom:11px"><label>Max AVM</label><input id="m_price" placeholder="e.g. 350000"></div>
            <button class="btn emer" style="width:100%;justify-content:center" onclick="loadMap()">Apply</button>
          </div>
@@ -396,7 +396,7 @@ select.uin{text-align:left}
        <div class="filters">
          <div class="fld"><label>Tier</label><select id="t_tier"><option>Tier 1 - Strong</option><option>Tier 2 - Moderate</option><option>Tier 3 - Watch</option></select></div>
          <div class="fld"><label>State</label><input id="t_state" placeholder="all states"></div>
-         <div class="fld"><label>Min gross yield</label><input id="t_yield" placeholder="e.g. 0.10"></div>
+         <div class="fld"><label>Min gross yield (%)</label><input id="t_yield" placeholder="e.g. 10"></div>
          <div class="fld"><label>Max AVM ($)</label><input id="t_price" placeholder="e.g. 350000"></div>
          <div class="fld"><label>Sort by</label><select id="t_sort"><option value="total_score">Score</option><option value="gross_yield">Yield</option><option value="avm">Price (low→high)</option><option value="tenure">Tenure</option></select></div>
          <div class="fld"><label>&nbsp;</label><button class="btn emer" onclick="loadTargets()">Search</button></div>
@@ -512,6 +512,9 @@ const post=(u,b)=>fetch(u,{method:'POST',headers:{'Content-Type':'application/js
 const get=u=>fetch(u).then(r=>r.json());
 const f=(x,d=0)=>x==null?'—':Number(x).toLocaleString(undefined,{maximumFractionDigits:d,minimumFractionDigits:d});
 const pct=(x,d=1)=>x==null?'—':(x*100).toFixed(d)+'%';
+// gross-yield input is entered in %, but the engine wants a decimal. Accept both:
+// "10" -> 0.10, "0.10" -> 0.10. Returns null for empty/invalid.
+const yldPct=v=>{v=parseFloat(v);return isNaN(v)?null:(v>1?v/100:v);};
 const tierBadge=t=>({'Tier 1 - Strong':'b-t1','Tier 2 - Moderate':'b-t2','Tier 3 - Watch':'b-t3'}[t]||'b-nm');
 let CHARTS={},MAP=null,CLUSTER=null,DMAP=null,SCEN='Base';
 // router
@@ -614,7 +617,7 @@ function applyLayers(){if(!MAP)return;MAP.invalidateSize();
 async function loadMap(){
  const b={tier:$('#m_tier').value,limit:9000};
  if($('#m_state').value)b.state=$('#m_state').value;
- if($('#m_yield').value)b.min_yield=+$('#m_yield').value;
+ if($('#m_yield').value&&yldPct($('#m_yield').value)!=null)b.min_yield=yldPct($('#m_yield').value);
  if($('#m_price').value)b.max_price=+$('#m_price').value;
  $('#mapstat').innerHTML='<span class="spin"></span>';
  const r=await post('/api/map_points',b);
@@ -636,7 +639,7 @@ let TROWS=[],TSORT={k:'total_score',d:-1},TTOTAL=0,_tdeb;
 async function loadTargets(){
  const b={tier:$('#t_tier').value,limit:300};
  if($('#t_state').value)b.state=$('#t_state').value;
- if($('#t_yield').value)b.min_yield=+$('#t_yield').value;
+ if($('#t_yield').value&&yldPct($('#t_yield').value)!=null)b.min_yield=yldPct($('#t_yield').value);
  if($('#t_price').value)b.max_price=+$('#t_price').value;
  $('#tempty').style.display='none';$('#tcard').style.display='block';
  $('#ttable tbody').innerHTML='<tr><td colspan="9" style="text-align:center;padding:34px;color:#6b7689"><span class="spin"></span> searching…</td></tr>';
@@ -650,7 +653,7 @@ const TCOLS=[['address','Address','l'],['city','City','l'],['state','ST','l'],['
 function renderT(){
  if(!TROWS.length){
    $('#tcard').style.display='none';$('#tsummary').innerHTML='';$('#tempty').style.display='block';
-   const ff=[];if($('#t_state').value)ff.push('state '+$('#t_state').value.toUpperCase());if($('#t_yield').value)ff.push('yield ≥ '+pct(+$('#t_yield').value));if($('#t_price').value)ff.push('AVM ≤ $'+f(+$('#t_price').value));
+   const ff=[];if($('#t_state').value)ff.push('state '+$('#t_state').value.toUpperCase());if($('#t_yield').value&&yldPct($('#t_yield').value)!=null)ff.push('yield ≥ '+pct(yldPct($('#t_yield').value)));if($('#t_price').value)ff.push('AVM ≤ $'+f(+$('#t_price').value));
    $('#tempty').innerHTML=`<div class="card pad" style="text-align:center;padding:48px 20px"><div style="font-size:40px">🔍</div>
      <h3 style="margin:12px 0 4px">No targets match these filters</h3>
      <p class="muted" style="max-width:440px;margin:0 auto 16px">${ff.length?'<b>Filters:</b> '+ff.join(' · ')+'.<br>':''}Heads-up: <b>Max AVM is in dollars</b> — most homes are $200k–$400k, so a value like 25000 ($25k) excludes everything. Try 350000.</p>
