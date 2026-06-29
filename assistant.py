@@ -24,6 +24,13 @@ OUTPUT — clean, logically sequenced (your reply renders as GitHub-flavored mar
 Keep it scannable — bullets and tables over long paragraphs. State **Confidence** (one word)
 when the answer is an estimate or depends on assumptions.
 
+DATA & STATISTICS — you CAN answer distributional questions. For "median / average /
+typical / spread / distribution / percentile of <field>" call `field_stats`; for "how many
+… <field> <over/under> <value>" call `count_where`. Fields: sqft, avm, market_rent,
+gross_yield, yearbuilt, tenure, total_score, beds — optionally filtered by tier/state.
+Report the median AND the spread (p25–p75 or p10–p90), not just one number. Never say you
+"can't" compute a statistic on these fields — you have the tool.
+
 WHAT-IF & HYPOTHETICALS — always supported. When the user asks "what if <X changes>"
 (rate, LTV, rent, price, vacancy, exit cap, growth, # homes, etc.):
   • Re-run the relevant tool(s) with the adjusted inputs (underwrite / reverse_solve /
@@ -73,6 +80,13 @@ TOOL_SPECS = [
      "input_schema": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}},
     {"name": "risk", "description": "Multi-dimension acquisition risk for one property: grade A–F, score, decision, and the top severity-ranked flags (flood, climate/insurance, regulatory, age, leverage, valuation) with mitigations.",
      "input_schema": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}},
+    {"name": "field_stats", "description": "Descriptive statistics over the scored universe for any numeric field: count, mean, MEDIAN, std, min, max, and percentiles (p10/p25/p75/p90). Use for 'what is the median/average/typical/spread/distribution of <field>'. Fields: sqft, avm, market_rent, gross_yield, yearbuilt, tenure, total_score, beds. Optional tier and state/city filter.",
+     "input_schema": {"type": "object", "properties": {"field": {"type": "string"},
+         "tier": {"type": "string"}, "state": {"type": "string"}}, "required": ["field"]}},
+    {"name": "count_where", "description": "Count properties whose numeric field meets a condition. Use for 'how many homes built before 1980', 'how many under $200k', etc. op is one of < <= > >= == !=. Optional tier and state/city filter.",
+     "input_schema": {"type": "object", "properties": {"field": {"type": "string"},
+         "op": {"type": "string", "enum": ["<", "<=", ">", ">=", "==", "!="]}, "value": {"type": "number"},
+         "tier": {"type": "string"}, "state": {"type": "string"}}, "required": ["field", "op", "value"]}},
 ]
 
 # ----------------------------------------------------------- offline parsing
@@ -119,9 +133,49 @@ def offline_answer(msg, dispatch, profile=None, assumptions=None):
     try:
         # 0) knowledge base — definitions / benchmarks / model concepts resolve first
         #    (guards inside answer_kb defer specific-deal & compute questions to the intents below)
-        if profile is not None and not has_prop_ref:
+        _statq = any(w in m for w in ["median", "average", "mean ", "percentile", "distribution",
+                    "std", "typical", "spread", "how many", "number of", "count of", "count "])
+        if profile is not None and not has_prop_ref and not _statq:
             kb = knowledge.answer_kb(msg, profile, assumptions or {}, snapshot=None)
             if kb: return _resp(kb)
+        # 0.65) descriptive statistics on the universe (median/mean/percentiles + counts)
+        if "field_stats" in dispatch and any(w in m for w in ["median", "average", "mean ", "percentile",
+                "distribution", "std", "typical", "how many", "number of", "count of", "spread of"]):
+            FIELDS = ["square feet", "square foot", "living area", "sqft", "avm", "price", "value",
+                      "market rent", "rent", "gross yield", "yield", "year built", "yearbuilt", "built",
+                      "age", "tenure", "total score", "score", "bedrooms", "beds"]
+            fld = next((k for k in FIELDS if k in m), None)
+            cntq = any(w in m for w in ["how many", "number of", "count"])
+            if not fld and cntq and re.search(r"\$\s*\d", m):
+                fld = "price"  # "how many under $200k" → count on AVM
+            if fld:
+                tier = ("Tier 1 - Strong" if "tier 1" in m or "tier-1" in m else "Tier 2 - Moderate" if "tier 2" in m
+                        else "Tier 3 - Watch" if "tier 3" in m else None)
+                stt = _state(msg)
+                cw = re.search(r"(under|over|below|above|less than|more than|at least|at most|younger than|older than|before|after)\s*\$?\s*([\d,]+)\s*([kKmM]?)", m)
+                if cntq and cw:
+                    opmap = {"under": "<", "below": "<", "less than": "<", "younger than": "<", "before": "<",
+                             "over": ">", "above": ">", "more than": ">", "older than": ">", "after": ">",
+                             "at least": ">=", "at most": "<="}
+                    val = float(cw.group(2).replace(",", "")); suf = (cw.group(3) or "").lower()
+                    val *= 1000 if suf == "k" else 1_000_000 if suf == "m" else 1
+                    r = dispatch["count_where"](field=fld, op=opmap[cw.group(1)], value=val, tier=tier, state=stt)
+                    if not r.get("error"):
+                        return _resp(f"**{r['count']:,} of {r['of']:,} ({_fmt_pct(r['share'])}) have {r['field']} {r['op']} {r['value']:,.0f}**"
+                                     + (f" in {stt}" if stt else "") + (f" · {tier}" if tier else "") + ".")
+                r = dispatch["field_stats"](field=fld, tier=tier, state=stt)
+                if not r.get("error") and r.get("count"):
+                    fld2 = r["field"]
+                    fm = (lambda x: _fmt_pct(x, 1)) if fld2 == "gross_yield" else \
+                         (lambda x: _fmt_money(x)) if fld2 in ("avm", "market_rent") else (lambda x: f"{x:,.0f}")
+                    scope = (f" · {tier}" if tier else "") + (f" · {stt}" if stt else "")
+                    tbl = [["Median", fm(r["median"])], ["Mean", fm(r["mean"])],
+                           ["25th–75th pct", f"{fm(r['p25'])} – {fm(r['p75'])}"],
+                           ["10th–90th pct", f"{fm(r['p10'])} – {fm(r['p90'])}"],
+                           ["Min – Max", f"{fm(r['min'])} – {fm(r['max'])}"]]
+                    return _resp(f"**Median {fld2.replace('_',' ')} is {fm(r['median'])}** across {r['count']:,} properties{scope}.\n"
+                                 f"**Spread:** half fall between {fm(r['p25'])} and {fm(r['p75'])} (25th–75th pct).",
+                                 [_table(["Statistic", "Value"], tbl)])
         # 0.7) WHAT-IF / hypothetical — vary one assumption, show Before -> After + the risk
         if any(w in m for w in ["what if", "what happens if", "if i ", "if the ", "suppose ", "scenario"]):
             # only $-prefixed or k/m-suffixed amounts (so "8%" isn't read as money)

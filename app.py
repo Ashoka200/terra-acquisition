@@ -162,6 +162,56 @@ def _loc_match(q, loc):
         return hit
     return q[states == su]  # last resort: maybe a loosely-typed code
 
+_FIELD_ALIASES = {
+    "square feet": "sqft", "square foot": "sqft", "living area": "sqft", "size": "sqft", "area": "sqft", "sqft": "sqft",
+    "avm": "avm", "price": "avm", "value": "avm", "valuation": "avm", "cost": "avm",
+    "market rent": "market_rent", "monthly rent": "market_rent", "rent": "market_rent",
+    "gross yield": "gross_yield", "yield": "gross_yield",
+    "year built": "yearbuilt", "yearbuilt": "yearbuilt", "year": "yearbuilt", "built": "yearbuilt", "age": "yearbuilt",
+    "tenure": "tenure", "ownership": "tenure",
+    "total score": "total_score", "score": "total_score",
+    "bedrooms": "beds", "bedroom": "beds", "beds": "beds", "bed": "beds"}
+NUMERIC_FIELDS = {"sqft", "avm", "market_rent", "gross_yield", "yearbuilt", "tenure", "total_score", "beds"}
+
+def _resolve_field(field):
+    f = str(field).strip().lower()
+    if f in NUMERIC_FIELDS: return f
+    if f in _FIELD_ALIASES: return _FIELD_ALIASES[f]
+    return next((v for k, v in _FIELD_ALIASES.items() if k in f), None)
+
+def t_field_stats(field, tier=None, state=None):
+    """Descriptive statistics (count/mean/median/std/min/max/percentiles) for any numeric
+    field over the scored universe, optionally filtered by tier and/or state/city."""
+    col = _resolve_field(field)
+    if not col:
+        return {"error": "unknown field '%s' — try: sqft, avm, market_rent, gross_yield, yearbuilt, tenure, total_score, beds" % field}
+    q = SCORED
+    if tier: q = q[q["tier"] == tier]
+    if state: q = _loc_match(q, state)
+    s = pd.to_numeric(q[col], errors="coerce").dropna()
+    if not len(s):
+        return {"field": col, "count": 0, "filter": {"tier": tier, "state": state}}
+    qq = s.quantile([0.1, 0.25, 0.5, 0.75, 0.9])
+    return {"field": col, "filter": {"tier": tier, "state": state}, "count": int(len(s)),
+            "mean": round(float(s.mean()), 4), "median": round(float(s.median()), 4),
+            "std": round(float(s.std()), 4), "min": round(float(s.min()), 4), "max": round(float(s.max()), 4),
+            "p10": round(float(qq.loc[0.1]), 4), "p25": round(float(qq.loc[0.25]), 4),
+            "p75": round(float(qq.loc[0.75]), 4), "p90": round(float(qq.loc[0.9]), 4)}
+
+def t_count_where(field, op, value, tier=None, state=None):
+    """Count properties whose numeric field meets a condition (op in < <= > >= == !=)."""
+    col = _resolve_field(field)
+    if not col: return {"error": "unknown field '%s'" % field}
+    q = SCORED
+    if tier: q = q[q["tier"] == tier]
+    if state: q = _loc_match(q, state)
+    s = pd.to_numeric(q[col], errors="coerce"); v = float(value)
+    masks = {"<": s < v, "<=": s <= v, ">": s > v, ">=": s >= v, "==": s == v, "!=": s != v}
+    if op not in masks: return {"error": "op must be one of < <= > >= == !="}
+    n = int(masks[op].sum()); tot = int(s.notna().sum())
+    return {"field": col, "op": op, "value": v, "count": n, "of": tot,
+            "share": round(n / tot, 4) if tot else 0, "filter": {"tier": tier, "state": state}}
+
 def t_market_summary():
     vc = SCORED["tier"].value_counts()
     t1 = SCORED[SCORED["tier"] == "Tier 1 - Strong"]
@@ -386,7 +436,8 @@ DISPATCH = {"market_summary": t_market_summary, "search_targets": t_search_targe
             "reverse_solve": t_reverse_solve, "portfolio_dcf": t_portfolio_dcf,
             "map_points": t_map_points, "analytics": t_analytics,
             "geocode": t_geocode, "site_analysis": t_site_analysis, "massing": t_massing_tool,
-            "explain_calc": t_explain_calc, "risk": t_risk}
+            "explain_calc": t_explain_calc, "risk": t_risk,
+            "field_stats": t_field_stats, "count_where": t_count_where}
 
 # ---------------- projects / model studio ----------------
 @app.route("/api/types")
@@ -972,6 +1023,34 @@ def health(): return jsonify(status="ok", rows=len(SCORED), model=assistant.MODE
 
 @app.route("/")
 def index(): return render_template("index.html")
+
+# ---------------- deal pipeline / CRM (additive — never touches the engine) ----------------
+import pipeline
+@app.route("/api/pipeline")
+def api_pipeline_list():
+    return jsonify(pipeline.listing(projects.PROJ_DIR, ACTIVE_PID))
+
+@app.route("/api/pipeline/add", methods=["POST"])
+def api_pipeline_add():
+    b = request.get_json(force=True)
+    r = t_lookup_property(query=b.get("apn") or b.get("query", ""))
+    if not r.get("found"):
+        return jsonify(error="property not found"), 404
+    e = pipeline.upsert(projects.PROJ_DIR, ACTIVE_PID, r, status=b.get("status", "Watching"))
+    return jsonify(ok=True, entry=e)
+
+@app.route("/api/pipeline/update", methods=["POST"])
+def api_pipeline_update():
+    b = request.get_json(force=True)
+    e = pipeline.update(projects.PROJ_DIR, ACTIVE_PID, b.get("apn", ""),
+                        status=b.get("status"), note=b.get("note"))
+    if not e: return jsonify(error="not in pipeline"), 404
+    return jsonify(ok=True, entry=e)
+
+@app.route("/api/pipeline/remove", methods=["POST"])
+def api_pipeline_remove():
+    pipeline.remove(projects.PROJ_DIR, ACTIVE_PID, request.get_json(force=True).get("apn", ""))
+    return jsonify(ok=True)
 
 # ---------------- ATLAS API key — set in-app, no Railway variable needed ----------------
 def _admin_ok():

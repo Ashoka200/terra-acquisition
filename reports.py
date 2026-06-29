@@ -78,7 +78,7 @@ _S = {
 
 def _doc(title, subtitle):
     buf = io.BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=letter, topMargin=1.25*inch, bottomMargin=0.8*inch,
+    doc = SimpleDocTemplate(buf, pagesize=letter, topMargin=0.85*inch, bottomMargin=0.8*inch,
                             leftMargin=0.6*inch, rightMargin=0.6*inch, title=title)
     return buf, doc
 

@@ -100,6 +100,12 @@ body{margin:0;font-family:Inter,system-ui,sans-serif;color:var(--ink);background
 #lmap .leaflet-bottom.leaflet-right{margin-bottom:100px}
 .akbox{padding:12px 16px;border-bottom:1px solid var(--line);background:#fafdfb}
 .akbox code{background:#eef1f6;padding:1px 4px;border-radius:4px;font-size:11px}
+.pipetbl{width:100%;border-collapse:collapse;font-size:13px}
+.pipetbl th{position:sticky;top:0;background:#f7f9fc;text-align:left;padding:9px 11px;font-size:10px;text-transform:uppercase;letter-spacing:.03em;color:var(--faint);border-bottom:1px solid var(--line2)}
+.pipetbl th.r,.pipetbl td.r{text-align:right}
+.pipetbl td{padding:9px 11px;border-bottom:1px solid #f1f4f8;vertical-align:middle}
+.pipetbl .pst{padding:5px 8px;border:1px solid var(--line);border-radius:8px;font-size:12px;font-weight:600;background:#fff}
+.pipetbl .pnote{width:100%;min-width:120px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;font-size:12px}
 .uwbook{margin-top:12px;border-top:1px solid var(--line2);padding-top:12px}
 .bkrow{display:flex;gap:10px;align-items:end;flex-wrap:wrap}
 .bkfile{padding:7px;border:1px dashed var(--line);border-radius:9px;background:#fafdfb;font-size:12px}
@@ -345,6 +351,7 @@ select.uin{text-align:left}
      <a data-v="studio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/><circle cx="12" cy="12" r="3.2"/></svg><span>Model Studio</span></a>
      <a data-v="calc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8M8 10h2M8 14h2M8 18h2M14 10h2M14 14h2v4h-2z"/></svg><span>Calculations</span></a>
      <a data-v="room"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg><span>Data Room</span></a>
+     <a data-v="pipe"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 6l2 13a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1l2-13"/><path d="M9 10v6M15 10v6"/></svg><span>Pipeline</span></a>
    </nav>
    <div class="sp"></div>
    <div class="freshchip"><span class="dot"></span>Universe scored · <b id="rowcount">…</b> homes<br><span class="muted" style="font-size:11px">Engine parity 100% · v2</span></div>
@@ -476,6 +483,17 @@ select.uin{text-align:left}
        <h1 class="h1">Data Room</h1><p class="sub" id="roomSub">Everything for the active project in one place — download the working model and data, or add new data and see exactly how the results change before you commit.</p>
        <div id="roomOut"><div class="muted" style="padding:24px"><span class="spin"></span> loading…</div></div>
      </section>
+     <!-- PIPELINE -->
+     <section id="pipe" class="view">
+       <h1 class="h1">Deal Pipeline</h1><p class="sub">Track the properties you're actually pursuing — set a status, add notes, and watch them move from Watching to Closed. Add deals from any property's profile (★ Add to pipeline).</p>
+       <div id="pipeKpis" class="grid k6" style="margin-bottom:14px"></div>
+       <div class="filters" style="margin-bottom:12px">
+         <div class="fld"><label>Add by APN / address</label><input id="pipeAddQ" placeholder="APN or address" onkeydown="if(event.key==='Enter')pipeAdd()"></div>
+         <div class="fld"><label>&nbsp;</label><button class="btn emer" onclick="pipeAdd()">★ Add to pipeline</button></div>
+         <div class="fld"><label>Show</label><select id="pipeFilter" onchange="renderPipe()"><option value="">All</option><option>Watching</option><option>Pursuing</option><option>Offer Made</option><option>Under Contract</option><option>Closed</option><option>Dead</option></select></div>
+       </div>
+       <div id="pipeOut"></div>
+     </section>
      <!-- PORTFOLIO -->
      <section id="port" class="view">
        <h1 class="h1">Portfolio DCF</h1><p class="sub">100-home Tier-1 portfolio · 10-yr levered model with IO→amortizing debt and exit on forward NOI.</p>
@@ -558,7 +576,7 @@ $('#nav').addEventListener('click',e=>{const a=e.target.closest('a');if(!a)retur
  $$('#nav a').forEach(x=>x.classList.remove('on'));a.classList.add('on');
  const v=a.dataset.v;$$('.view').forEach(x=>x.classList.remove('on'));$('#'+v).classList.add('on');
  if(v==='map'){setTimeout(initMap,60)} if(v==='targets'&&!$('#ttable tbody').children.length)loadTargets();
- if(v==='port')loadPort(); if(v==='studio')loadStudio(); if(v==='calc'&&CALCAPN&&!$('#calcOut .calcsheet'))loadCalc(CALCAPN); if(v==='room')loadRoom();});
+ if(v==='port')loadPort(); if(v==='studio')loadStudio(); if(v==='calc'&&CALCAPN&&!$('#calcOut .calcsheet'))loadCalc(CALCAPN); if(v==='room')loadRoom(); if(v==='pipe')loadPipe();});
 
 // ---------------- DASHBOARD ----------------
 const IC={port:'M3 3v18h18',home:'M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',pct:'M19 5L5 19M6.5 6.5h.01M17.5 17.5h.01',pin:'M12 21s-7-6-7-11a7 7 0 0 1 14 0c0 5-7 11-7 11z',hash:'M4 9h16M4 15h16M10 3L8 21M16 3l-2 18',clock:'M12 7v5l3 2'};
@@ -756,6 +774,7 @@ async function openDrawer(apn){
    </div>`:''}
    ${r.lat?`<button class="btn ghost" style="width:100%;justify-content:center;margin-top:8px" onclick="openSite(${r.lat},${r.lon})">🧭 Site intelligence — best use, facilities, flood</button>`:''}
    <button class="btn ghost" style="width:100%;justify-content:center;margin-top:8px" onclick="toCalc('${r.apn}')">🧮 See full calculation — gate, score & underwriting</button>
+   <button class="btn ghost" style="width:100%;justify-content:center;margin-top:8px" onclick="addToPipe('${r.apn}')">★ Add to pipeline</button>
    <div style="display:flex;gap:8px;margin-top:8px">
      <button class="btn ghost" style="flex:1;justify-content:center" onclick="dl('/api/report/property.pdf?apn='+encodeURIComponent('${r.apn}'))">⤓ Property PDF</button>
      <button class="btn ghost" style="flex:1;justify-content:center" onclick="dl('/api/report/model.xlsx?apn='+encodeURIComponent('${r.apn}'))">⤓ Working model .xlsx</button>
@@ -829,6 +848,35 @@ function rollRow(label,formula,val,note,kind){return `<div class="cxrr ${kind||'
   <div class="cxrf mono">${formula}</div><div class="cxrv">${val}</div></div>`}
 // ---------------- DATA ROOM ----------------
 const FMTIC={xlsx:'#0a7a55',csv:'#1f7a4d',pdf:'#c0392b'};
+// ---------------- DEAL PIPELINE ----------------
+let PIPE={rows:[],counts:{},statuses:[]};
+const PSTAT_C={Watching:'#6b7689',Pursuing:'#2f6fed','Offer Made':'#c79114','Under Contract':'#0a7a55',Closed:'#0e9d6e',Dead:'#c0392b'};
+async function loadPipe(){let d;try{d=await get('/api/pipeline');}catch(e){$('#pipeOut').innerHTML='<div class="muted" style="padding:24px">Run the app to load the pipeline.</div>';return}
+ PIPE=d;renderPipe();}
+function renderPipe(){const d=PIPE;
+ $('#pipeKpis').innerHTML=kpi('In pipeline',IC.home,f(d.total),'tracked deals')+
+   d.statuses.map(s=>kpi(s,IC.hash,f(d.counts[s]||0),'')).slice(0,5).join('');
+ const filt=$('#pipeFilter').value;
+ const rows=d.rows.filter(r=>!filt||r.status===filt);
+ if(!rows.length){$('#pipeOut').innerHTML='<div class="muted" style="padding:30px;text-align:center;border:1px dashed var(--line);border-radius:12px">No deals yet. Add by APN/address above, or open any property and click <b>★ Add to pipeline</b>.</div>';return}
+ const opts=s=>d.statuses.map(x=>`<option ${x===s?'selected':''}>${x}</option>`).join('');
+ $('#pipeOut').innerHTML=`<div class="card"><div style="overflow:auto"><table class="pipetbl">
+   <thead><tr><th>Property</th><th>Tier</th><th class="r">Score</th><th class="r">AVM</th><th class="r">Yield</th><th>Status</th><th>Note</th><th></th></tr></thead><tbody>`+
+   rows.map(r=>`<tr>
+     <td><b style="cursor:pointer" onclick="openDrawer('${r.apn}')">${esc(r.address||r.apn)}</b><br><span class="muted" style="font-size:11px">${esc(r.city||'')}, ${esc(r.state||'')} · ${esc(r.apn)}</span></td>
+     <td><span class="badge ${tierBadge(r.tier)}">${(r.tier||'').split(' - ')[0]}</span></td>
+     <td class="r">${f(r.score,0)}</td><td class="r">$${f(r.avm)}</td><td class="r">${pct(r.gross_yield)}</td>
+     <td><select class="pst" style="border-left:4px solid ${PSTAT_C[r.status]||'#999'}" onchange="pipeStatus('${r.apn}',this.value)">${opts(r.status)}</select></td>
+     <td><input class="pnote" value="${esc(r.note||'')}" placeholder="add a note…" onchange="pipeNote('${r.apn}',this.value)"></td>
+     <td><span class="close" title="Remove" onclick="pipeRemove('${r.apn}')">✕</span></td>
+   </tr>`).join('')+`</tbody></table></div></div>`;}
+async function pipeAdd(apn){const q=apn||$('#pipeAddQ').value.trim();if(!q){return}
+ const r=await post('/api/pipeline/add',{apn:q});
+ if(r.ok){$('#pipeAddQ').value='';loadPipe();}else alert(r.error||'could not add');}
+async function pipeStatus(apn,status){await post('/api/pipeline/update',{apn,status});loadPipe();}
+async function pipeNote(apn,note){await post('/api/pipeline/update',{apn,note});}
+async function pipeRemove(apn){if(!confirm('Remove this deal from the pipeline?'))return;await post('/api/pipeline/remove',{apn});loadPipe();}
+async function addToPipe(apn){const r=await post('/api/pipeline/add',{apn});const b=event&&event.target;if(b){b.textContent='✓ In pipeline';b.disabled=true;}}
 async function loadRoom(){let d;try{d=await get('/api/project/dataroom');}catch(e){$('#roomOut').innerHTML='<div class="muted" style="padding:24px">Run the Flask app to load the Data Room.</div>';return}
  const p=d.project,s=d.snapshot;
  let h=`<div class="card"><div class="cb">
