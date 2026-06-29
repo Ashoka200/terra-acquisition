@@ -96,6 +96,8 @@ body{margin:0;font-family:Inter,system-ui,sans-serif;color:var(--ink);background
 .kpi.clickable:hover .kgo{opacity:1}
 .barrow.clickable{cursor:pointer;border-radius:8px;padding:2px 4px;margin:0 -4px;transition:.12s}
 .barrow.clickable:hover{background:#f0faf5}
+/* keep the bottom-right map zoom control clear of the floating ATLAS button */
+#lmap .leaflet-bottom.leaflet-right{margin-bottom:100px}
 .uwbook{margin-top:12px;border-top:1px solid var(--line2);padding-top:12px}
 .bkrow{display:flex;gap:10px;align-items:end;flex-wrap:wrap}
 .bkfile{padding:7px;border:1px dashed var(--line);border-radius:9px;background:#fafdfb;font-size:12px}
